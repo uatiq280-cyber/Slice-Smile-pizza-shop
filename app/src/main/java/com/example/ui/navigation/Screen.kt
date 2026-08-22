@@ -35,4 +35,5 @@ val navigationScreens = listOf(
     Screen.Orders,
     Screen.Loyalty,
     Screen.ShopInfo
+    Screen.Admin
 )
