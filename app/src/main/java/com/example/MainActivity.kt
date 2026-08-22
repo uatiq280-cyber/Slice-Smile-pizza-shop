@@ -315,7 +315,16 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                     )
                 }
             }
-
+composable(Screen.Admin.route) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Admin Panel"
+        )
+    }
+}
             // Customization Dialog
             customizingItem?.let { item ->
                 ItemCustomizationDialog(
