@@ -1,0 +1,528 @@
+package com.example.viewmodel
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.data.MenuDataSource
+import com.example.data.local.AppDatabase
+import com.example.data.repository.PizzaRepository
+import com.example.model.CartItem
+import com.example.model.CustomerFeedback
+import com.example.model.LoyaltyProfile
+import com.example.model.MenuCategory
+import com.example.model.MenuItem
+import com.example.model.Order
+import com.example.model.OrderStatus
+import com.example.model.PaymentMethod
+import com.example.model.PortionSize
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.util.UUID
+
+sealed class UiEvent {
+    data class ShowToast(val message: String) : UiEvent()
+    data class OrderPlacedSuccess(val order: Order) : UiEvent()
+}
+
+class PizzaShopViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository: PizzaRepository
+
+    init {
+        val db = AppDatabase.getDatabase(application)
+        repository = PizzaRepository(db)
+    }
+
+    val ordersList: StateFlow<List<Order>> = repository.allOrders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val loyaltyProfile: StateFlow<LoyaltyProfile> = repository.loyaltyProfile
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LoyaltyProfile())
+
+    val customerReviews: StateFlow<List<CustomerFeedback>> = repository.allFeedback
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MenuDataSource.sampleReviews)
+
+    // Admin & Menu Management States
+    val adminPin: StateFlow<String> = repository.adminPinFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "1234")
+
+    private val _isAdminLoggedIn = MutableStateFlow(false)
+    val isAdminLoggedIn: StateFlow<Boolean> = _isAdminLoggedIn.asStateFlow()
+
+    private val _isShowingAdminLogin = MutableStateFlow(false)
+    val isShowingAdminLogin: StateFlow<Boolean> = _isShowingAdminLogin.asStateFlow()
+
+    private val _isShowingChangePinDialog = MutableStateFlow(false)
+    val isShowingChangePinDialog: StateFlow<Boolean> = _isShowingChangePinDialog.asStateFlow()
+
+    private val _isShowingEditItemDialog = MutableStateFlow(false)
+    val isShowingEditItemDialog: StateFlow<Boolean> = _isShowingEditItemDialog.asStateFlow()
+
+    private val _editingItem = MutableStateFlow<MenuItem?>(null)
+    val editingItem: StateFlow<MenuItem?> = _editingItem.asStateFlow()
+
+    // Dynamic Master Menu Items (Merged from defaults + Database Customizations)
+    val allMenuItems: StateFlow<List<MenuItem>> = repository.customMenuItemsFlow.map { customEntities ->
+        val defaultMap = LinkedHashMap<String, MenuItem>()
+        MenuDataSource.menuItems.forEach { defaultMap[it.id] = it }
+
+        for (entity in customEntities) {
+            if (entity.isDeleted) {
+                defaultMap.remove(entity.id)
+            } else {
+                defaultMap[entity.id] = entity.toDomain()
+            }
+        }
+        defaultMap.values.toList()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MenuDataSource.menuItems)
+
+    // Search and category filtering
+    private val _selectedCategory = MutableStateFlow(MenuCategory.ALL)
+    val selectedCategory: StateFlow<MenuCategory> = _selectedCategory.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    val filteredMenuItems: StateFlow<List<MenuItem>> = combine(
+        allMenuItems,
+        _selectedCategory,
+        _searchQuery
+    ) { items, category, query ->
+        var list = items
+        if (category != MenuCategory.ALL) {
+            list = list.filter { it.category == category }
+        }
+        if (query.isNotBlank()) {
+            val q = query.trim().lowercase()
+            list = list.filter {
+                it.name.lowercase().contains(q) ||
+                it.description.lowercase().contains(q) ||
+                it.dealIncludes.any { item -> item.lowercase().contains(q) } ||
+                (it.tag?.lowercase()?.contains(q) == true)
+            }
+        }
+        list
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MenuDataSource.menuItems)
+
+    // Active item customization modal
+    private val _customizingItem = MutableStateFlow<MenuItem?>(null)
+    val customizingItem: StateFlow<MenuItem?> = _customizingItem.asStateFlow()
+
+    // Cart state
+    private val _cartItems = MutableStateFlow<List<CartItem>>(emptyList())
+    val cartItems: StateFlow<List<CartItem>> = _cartItems.asStateFlow()
+
+    // Coins redemption in cart
+    private val _applyCoinsDiscount = MutableStateFlow(false)
+    val applyCoinsDiscount: StateFlow<Boolean> = _applyCoinsDiscount.asStateFlow()
+
+    // Customer Checkout Info
+    private val _customerName = MutableStateFlow("")
+    val customerName: StateFlow<String> = _customerName.asStateFlow()
+
+    private val _customerPhone = MutableStateFlow("")
+    val customerPhone: StateFlow<String> = _customerPhone.asStateFlow()
+
+    private val _deliveryAddress = MutableStateFlow("Chowk Nazir Wala, Main Street")
+    val deliveryAddress: StateFlow<String> = _deliveryAddress.asStateFlow()
+
+    private val _areaLandmark = MutableStateFlow("Near Chowk Nazir Wala")
+    val areaLandmark: StateFlow<String> = _areaLandmark.asStateFlow()
+
+    private val _orderNote = MutableStateFlow("")
+    val orderNote: StateFlow<String> = _orderNote.asStateFlow()
+
+    private val _selectedPaymentMethod = MutableStateFlow(PaymentMethod.CASH_ON_DELIVERY)
+    val selectedPaymentMethod: StateFlow<PaymentMethod> = _selectedPaymentMethod.asStateFlow()
+
+    private val _easypaisaTrxId = MutableStateFlow("")
+    val easypaisaTrxId: StateFlow<String> = _easypaisaTrxId.asStateFlow()
+
+    private val _isShowingEasypaisaModal = MutableStateFlow(false)
+    val isShowingEasypaisaModal: StateFlow<Boolean> = _isShowingEasypaisaModal.asStateFlow()
+
+    private val _isLocationSelectorVisible = MutableStateFlow(false)
+    val isLocationSelectorVisible: StateFlow<Boolean> = _isLocationSelectorVisible.asStateFlow()
+
+    private val _selectedOrderForFeedback = MutableStateFlow<Order?>(null)
+    val selectedOrderForFeedback: StateFlow<Order?> = _selectedOrderForFeedback.asStateFlow()
+
+    private val _eventFlow = MutableSharedFlow<UiEvent>()
+    val eventFlow: SharedFlow<UiEvent> = _eventFlow.asSharedFlow()
+
+    // Cart Computations
+    val cartSubtotal: StateFlow<Int> = _cartItems.combine(_applyCoinsDiscount) { items, _ ->
+        items.sumOf { it.totalItemPrice }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val potentialCoinsEarned: StateFlow<Int> = cartSubtotal.map { subtotal ->
+        // Loyalty rule: minimum Rs 1500 order earns coins! (100 coins per 1500 spent)
+        if (subtotal >= 1500) {
+            (subtotal / 1500) * 100
+        } else {
+            0
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val redeemableCoinsDiscount: StateFlow<Int> = combine(
+        cartSubtotal,
+        _applyCoinsDiscount,
+        loyaltyProfile
+    ) { subtotal, apply, profile ->
+        if (apply && profile.currentCoins >= 100 && subtotal > 0) {
+            // 100 coins = Rs 10 discount
+            val maxDiscount = (profile.currentCoins / 100) * 10
+            minOf(maxDiscount, subtotal)
+        } else {
+            0
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val coinsToRedeemCount: StateFlow<Int> = redeemableCoinsDiscount.map { discountRs ->
+        (discountRs / 10) * 100
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val deliveryFee: StateFlow<Int> = cartSubtotal.map { subtotal ->
+        if (subtotal == 0) 0
+        else if (subtotal >= MenuDataSource.MINIMUM_DELIVERY_ORDER) 0 // Free within 3 KM
+        else 80
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val grandTotal: StateFlow<Int> = combine(
+        cartSubtotal,
+        redeemableCoinsDiscount,
+        deliveryFee
+    ) { subtotal, discount, fee ->
+        if (subtotal == 0) 0 else (subtotal - discount + fee).coerceAtLeast(0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // Actions
+    fun setCategory(category: MenuCategory) {
+        _selectedCategory.value = category
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun openItemCustomization(menuItem: MenuItem) {
+        _customizingItem.value = menuItem
+    }
+
+    fun closeItemCustomization() {
+        _customizingItem.value = null
+    }
+
+    fun addToCart(
+        menuItem: MenuItem,
+        size: PortionSize?,
+        crust: com.example.model.CrustType? = null,
+        toppings: List<com.example.model.PizzaTopping> = emptyList(),
+        unitPrice: Int,
+        quantity: Int,
+        extraCheese: Boolean,
+        spiceLevel: String,
+        drinkChoice: String,
+        specialInstructions: String
+    ) {
+        val newItem = CartItem(
+            cartItemId = UUID.randomUUID().toString(),
+            menuItem = menuItem,
+            selectedSize = size,
+            selectedCrust = crust,
+            selectedToppings = toppings,
+            unitPrice = unitPrice,
+            quantity = quantity,
+            extraCheese = extraCheese,
+            spiceLevel = spiceLevel,
+            drinkChoice = drinkChoice,
+            specialInstructions = specialInstructions
+        )
+        _cartItems.value = _cartItems.value + newItem
+        _customizingItem.value = null
+        viewModelScope.launch {
+            _eventFlow.emit(UiEvent.ShowToast("Added ${menuItem.name} to cart! 🍕"))
+        }
+    }
+
+    fun quickAddToCart(menuItem: MenuItem) {
+        val size = if (menuItem.sizeOptions.isNotEmpty()) menuItem.sizeOptions.first().size else null
+        val crust = if (menuItem.category == MenuCategory.PIZZA || menuItem.category == MenuCategory.SPECIAL_PIZZA) {
+            com.example.model.CrustType.PAN_THICK
+        } else null
+        val price = menuItem.defaultPrice
+        addToCart(
+            menuItem = menuItem,
+            size = size,
+            crust = crust,
+            toppings = emptyList(),
+            unitPrice = price,
+            quantity = 1,
+            extraCheese = false,
+            spiceLevel = "Normal",
+            drinkChoice = "Regular Coke",
+            specialInstructions = ""
+        )
+    }
+
+    fun updateCartItemQuantity(cartItemId: String, delta: Int) {
+        val current = _cartItems.value.toMutableList()
+        val index = current.indexOfFirst { it.cartItemId == cartItemId }
+        if (index != -1) {
+            val item = current[index]
+            val newQty = item.quantity + delta
+            if (newQty <= 0) {
+                current.removeAt(index)
+            } else {
+                current[index] = item.copy(quantity = newQty)
+            }
+            _cartItems.value = current
+        }
+    }
+
+    fun removeCartItem(cartItemId: String) {
+        _cartItems.value = _cartItems.value.filter { it.cartItemId != cartItemId }
+    }
+
+    fun clearCart() {
+        _cartItems.value = emptyList()
+        _applyCoinsDiscount.value = false
+    }
+
+    fun toggleCoinsDiscount() {
+        _applyCoinsDiscount.value = !_applyCoinsDiscount.value
+    }
+
+    fun setCustomerName(name: String) { _customerName.value = name }
+    fun setCustomerPhone(phone: String) { _customerPhone.value = phone }
+    fun setDeliveryAddress(address: String) { _deliveryAddress.value = address }
+    fun setAreaLandmark(landmark: String) { _areaLandmark.value = landmark }
+    fun setOrderNote(note: String) { _orderNote.value = note }
+    fun setPaymentMethod(method: PaymentMethod) {
+        _selectedPaymentMethod.value = method
+        if (method == PaymentMethod.EASYPAISA) {
+            _isShowingEasypaisaModal.value = true
+        }
+    }
+
+    fun setEasypaisaTrxId(trxId: String) {
+        _easypaisaTrxId.value = trxId
+    }
+
+    fun showEasypaisaModal(show: Boolean) {
+        _isShowingEasypaisaModal.value = show
+    }
+
+    fun showLocationSelector(show: Boolean) {
+        _isLocationSelectorVisible.value = show
+    }
+
+    fun setFeedbackOrder(order: Order?) {
+        _selectedOrderForFeedback.value = order
+    }
+
+    fun placeOrder(onSuccess: (Order) -> Unit) {
+        val items = _cartItems.value
+        if (items.isEmpty()) {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Your cart is empty!"))
+            }
+            return
+        }
+
+        val name = _customerName.value.ifBlank { "Valued Customer" }
+        val phone = _customerPhone.value.ifBlank { "0300-1234567" }
+        val address = _deliveryAddress.value.ifBlank { "Chowk Nazir Wala" }
+
+        val subtotal = cartSubtotal.value
+        val discount = redeemableCoinsDiscount.value
+        val fee = deliveryFee.value
+        val total = grandTotal.value
+        val earnedCoins = potentialCoinsEarned.value
+        val redeemedCoins = coinsToRedeemCount.value
+
+        val itemsSummary = items.joinToString("\n") { item ->
+            val details = mutableListOf<String>()
+            item.selectedSize?.let { details.add(it.label) }
+            item.selectedCrust?.let { details.add(it.displayName) }
+            if (item.selectedToppings.isNotEmpty()) {
+                details.add("Toppings: " + item.selectedToppings.joinToString(", ") { it.name })
+            }
+            if (item.extraCheese) details.add("+Extra Cheese")
+            if (item.spiceLevel != "Normal") details.add(item.spiceLevel)
+            val detailsStr = if (details.isNotEmpty()) " (${details.joinToString(" • ")})" else ""
+            "• ${item.quantity}x ${item.menuItem.name}$detailsStr = Rs. ${item.totalItemPrice}"
+        }
+
+        val order = Order(
+            orderId = System.currentTimeMillis() % 100000,
+            itemsSummary = itemsSummary,
+            itemsCount = items.sumOf { it.quantity },
+            subtotal = subtotal,
+            discount = discount,
+            deliveryFee = fee,
+            totalAmount = total,
+            paymentMethod = _selectedPaymentMethod.value,
+            easypaisaTrxId = if (_selectedPaymentMethod.value == PaymentMethod.EASYPAISA) _easypaisaTrxId.value.ifBlank { "Pending Verification" } else null,
+            customerName = name,
+            customerPhone = phone,
+            deliveryAddress = address,
+            areaLandmark = _areaLandmark.value,
+            orderNote = _orderNote.value,
+            coinsEarned = earnedCoins,
+            coinsRedeemed = redeemedCoins,
+            status = OrderStatus.ORDER_RECEIVED,
+            timestamp = System.currentTimeMillis()
+        )
+
+        viewModelScope.launch {
+            val generatedId = repository.placeOrder(order)
+            val finalOrder = order.copy(orderId = generatedId)
+
+            clearCart()
+            _easypaisaTrxId.value = ""
+            _isShowingEasypaisaModal.value = false
+
+            _eventFlow.emit(UiEvent.OrderPlacedSuccess(finalOrder))
+            onSuccess(finalOrder)
+
+            // Simulate realistic order status transitions in background
+            simulateOrderStatusProgression(generatedId)
+        }
+    }
+
+    private fun simulateOrderStatusProgression(orderId: Long) {
+        viewModelScope.launch {
+            delay(15000) // 15 seconds -> Preparing Pizza
+            repository.updateOrderStatus(orderId, OrderStatus.PREPARING_PIZZA)
+            delay(25000) // 25 seconds -> Out for delivery
+            repository.updateOrderStatus(orderId, OrderStatus.OUT_FOR_DELIVERY)
+            delay(30000) // 30 seconds -> Delivered
+            repository.updateOrderStatus(orderId, OrderStatus.DELIVERED)
+        }
+    }
+
+    fun submitFeedback(
+        orderId: Long,
+        overallRating: Int,
+        foodTaste: Int,
+        deliverySpeed: Int,
+        comment: String
+    ) {
+        viewModelScope.launch {
+            val feedback = CustomerFeedback(
+                orderId = orderId,
+                customerName = _customerName.value.ifBlank { "Slice Smile Customer" },
+                overallRating = overallRating,
+                foodTasteRating = foodTaste,
+                deliverySpeedRating = deliverySpeed,
+                comment = comment,
+                timestamp = System.currentTimeMillis()
+            )
+            repository.submitFeedback(feedback)
+            _selectedOrderForFeedback.value = null
+            _eventFlow.emit(UiEvent.ShowToast("Thank you for your feedback! ⭐"))
+        }
+    }
+
+    fun updateManualOrderStatus(orderId: Long, status: OrderStatus) {
+        viewModelScope.launch {
+            repository.updateOrderStatus(orderId, status)
+        }
+    }
+
+    // ================= ADMIN PORTAL ACTIONS =================
+    fun showAdminLoginDialog(show: Boolean) {
+        _isShowingAdminLogin.value = show
+    }
+
+    fun showChangePinDialog(show: Boolean) {
+        _isShowingChangePinDialog.value = show
+    }
+
+    fun verifyAndLoginAdmin(pin: String): Boolean {
+        val currentPin = adminPin.value
+        val isValid = (pin.trim() == currentPin.trim())
+        if (isValid) {
+            _isAdminLoggedIn.value = true
+            _isShowingAdminLogin.value = false
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Welcome to Owner / Admin Portal 👑"))
+            }
+        }
+        return isValid
+    }
+
+    fun logoutAdmin() {
+        _isAdminLoggedIn.value = false
+        viewModelScope.launch {
+            _eventFlow.emit(UiEvent.ShowToast("Logged out of Admin Portal 🔒"))
+        }
+    }
+
+    fun changeAdminPin(currentPin: String, newPin: String): Boolean {
+        if (currentPin.trim() != adminPin.value.trim()) {
+            return false
+        }
+        if (newPin.trim().length < 4) {
+            return false
+        }
+        viewModelScope.launch {
+            repository.updateAdminPin(newPin.trim())
+            _isShowingChangePinDialog.value = false
+            _eventFlow.emit(UiEvent.ShowToast("Admin Password Updated Successfully! 🔑"))
+        }
+        return true
+    }
+
+    fun openAdminEditItem(item: MenuItem?) {
+        _editingItem.value = item
+        _isShowingEditItemDialog.value = true
+    }
+
+    fun closeAdminEditItem() {
+        _editingItem.value = null
+        _isShowingEditItemDialog.value = false
+    }
+
+    fun saveMenuItem(item: MenuItem) {
+        viewModelScope.launch {
+            repository.saveCustomMenuItem(item)
+            _isShowingEditItemDialog.value = false
+            _editingItem.value = null
+            _eventFlow.emit(UiEvent.ShowToast("Menu item '${item.name}' saved successfully! ✅"))
+        }
+    }
+
+    fun deleteMenuItem(itemId: String) {
+        viewModelScope.launch {
+            repository.deleteCustomMenuItem(itemId)
+            _eventFlow.emit(UiEvent.ShowToast("Item removed from Menu 🗑️"))
+        }
+    }
+
+    fun toggleItemStock(item: MenuItem, isAvailable: Boolean) {
+        viewModelScope.launch {
+            val updated = item.copy(isAvailable = isAvailable)
+            repository.saveCustomMenuItem(updated)
+            val msg = if (isAvailable) "${item.name} is now Available in Stock ✅" else "${item.name} marked Out of Stock ❌"
+            _eventFlow.emit(UiEvent.ShowToast(msg))
+        }
+    }
+
+    fun resetMenuToDefaults() {
+        viewModelScope.launch {
+            repository.resetAllMenuToDefaults()
+            _eventFlow.emit(UiEvent.ShowToast("All menu items & rates restored to factory defaults! 🔄"))
+        }
+    }
+}

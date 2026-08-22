@@ -1,0 +1,6 @@
+{
+  "name": "Slice Smile Pizza Shop",
+  "description": "Slice Smile Pizza Shop online food ordering app with fast food menu, deals, live order location, Easypaisa & COD payment, loyalty coins program, and customer feedback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
