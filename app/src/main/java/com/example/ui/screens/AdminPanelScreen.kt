@@ -23,17 +23,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockReset
+import androidx.compose.material.icons.filled.Moped
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -43,6 +48,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,9 +59,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,29 +75,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.MenuCategory
 import com.example.model.MenuItem
+import com.example.model.Order
+import com.example.model.OrderStatus
+import com.example.model.PaymentMethod
+import com.example.model.Rider
+import com.example.ui.components.WhatsAppOrderHelper
 import com.example.ui.theme.BasilGreen
 import com.example.ui.theme.CheeseAmber
-import com.example.ui.theme.CheeseGold
 import com.example.ui.theme.PolishBgLight
 import com.example.ui.theme.PolishBorder
 import com.example.ui.theme.PolishBorderStrong
-import com.example.ui.theme.PolishInputBorder
 import com.example.ui.theme.PolishMaroonDark
 import com.example.ui.theme.PolishPrimaryContainer
 import com.example.ui.theme.PolishPrimaryContainerSubtle
 import com.example.ui.theme.PolishPrimaryRed
 import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
+import com.example.ui.theme.WhatsAppGreen
 
 @Composable
 fun AdminPanelScreen(
     menuItems: List<MenuItem>,
+    orders: List<Order>,
+    riders: List<Rider>,
     onAddNewItem: () -> Unit,
     onEditItem: (MenuItem) -> Unit,
     onDeleteItem: (String) -> Unit,
@@ -93,12 +112,21 @@ fun AdminPanelScreen(
     onResetDefaults: () -> Unit,
     onChangePinClick: () -> Unit,
     onLogoutClick: () -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onUpdateOrderStatus: (orderId: Long, nextStatus: OrderStatus) -> Unit,
+    onAssignRiderClick: (Order) -> Unit,
+    onAddRiderClick: () -> Unit,
+    onEditRiderClick: (Rider) -> Unit,
+    onDeleteRiderClick: (String) -> Unit,
+    onToggleRiderEnabled: (Rider, Boolean) -> Unit,
+    onTestNotificationSound: () -> Unit
 ) {
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Orders, 1: Menu & Prices, 2: Riders Fleet
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<MenuCategory?>(null) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var itemPendingDelete by remember { mutableStateOf<MenuItem?>(null) }
+    var riderPendingDelete by remember { mutableStateOf<Rider?>(null) }
 
     val filteredItems = remember(menuItems, searchQuery, selectedCategory) {
         menuItems.filter { item ->
@@ -114,281 +142,273 @@ fun AdminPanelScreen(
         }
     }
 
-    val totalItemsCount = menuItems.size
-    val totalDealsCount = menuItems.count { it.category == MenuCategory.DEALS || it.category == MenuCategory.FAMILY_DEALS || it.category == MenuCategory.BIRTHDAY_DEALS }
+    val pendingOrdersCount = orders.count { it.status != OrderStatus.DELIVERED }
     val outOfStockCount = menuItems.count { !it.isAvailable }
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddNewItem,
-                containerColor = PolishPrimaryRed,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.testTag("admin_add_item_fab")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (selectedTab == 1) {
+                FloatingActionButton(
+                    onClick = onAddNewItem,
+                    containerColor = PolishPrimaryRed,
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.testTag("admin_add_item_fab")
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Add New Deal")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Add Deal / Item ➕",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add New Deal")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Add Item ➕",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            } else if (selectedTab == 2) {
+                FloatingActionButton(
+                    onClick = onAddRiderClick,
+                    containerColor = PolishPrimaryRed,
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.testTag("admin_add_rider_fab")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add Rider")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Add Rider 🛵",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
         }
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(PolishBgLight)
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 80.dp)
+                .padding(innerPadding)
         ) {
             // 1. Header Banner
-            item {
-                Surface(
-                    color = PolishMaroonDark,
-                    shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = onBackClick,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(Color.White.copy(alpha = 0.15f), CircleShape)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "Owner / Admin Portal 👑",
-                                        style = MaterialTheme.typography.titleLarge.copy(
-                                            fontWeight = FontWeight.Black,
-                                            color = Color.White,
-                                            fontSize = 18.sp
-                                        )
-                                    )
-                                    Text(
-                                        text = "ریٹس اور مینو ڈیلز مینیجمنٹ",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Color.White.copy(alpha = 0.8f),
-                                            fontSize = 11.sp
-                                        )
-                                    )
-                                }
-                            }
-
-                            // Logout button
-                            OutlinedButton(
-                                onClick = onLogoutClick,
-                                shape = RoundedCornerShape(10.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Logout", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Stats Summary Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AdminStatChip(
-                                title = "Total Items",
-                                value = "$totalItemsCount",
-                                modifier = Modifier.weight(1f)
-                            )
-                            AdminStatChip(
-                                title = "Active Deals",
-                                value = "$totalDealsCount",
-                                modifier = Modifier.weight(1f)
-                            )
-                            AdminStatChip(
-                                title = "Out of Stock",
-                                value = "$outOfStockCount",
-                                isAlert = outOfStockCount > 0,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Top Quick Buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = onChangePinClick,
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White.copy(alpha = 0.2f),
-                                    contentColor = Color.White
-                                ),
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(vertical = 8.dp)
-                            ) {
-                                Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Change PIN 🔑", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            Button(
-                                onClick = { showResetConfirmDialog = true },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White.copy(alpha = 0.2f),
-                                    contentColor = Color.White
-                                ),
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(vertical = 8.dp)
-                            ) {
-                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Reset Menu 🔄", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. Search & Category Filters
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search deal, pizza, burger to edit rate...") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = PolishTextMuted)
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            focusedBorderColor = PolishPrimaryRed,
-                            unfocusedBorderColor = PolishBorder
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("admin_search_bar")
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = selectedCategory == null || selectedCategory == MenuCategory.ALL,
-                                onClick = { selectedCategory = MenuCategory.ALL },
-                                label = { Text("All (${menuItems.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = PolishPrimaryRed,
-                                    selectedLabelColor = Color.White,
-                                    containerColor = Color.White
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
-                                    selected = selectedCategory == null || selectedCategory == MenuCategory.ALL,
-                                    borderColor = PolishBorder,
-                                    selectedBorderColor = PolishPrimaryRed
-                                )
-                            )
-                        }
-                        items(MenuCategory.entries.filter { it != MenuCategory.ALL }) { cat ->
-                            val isSelected = selectedCategory == cat
-                            val count = menuItems.count { it.category == cat }
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedCategory = cat },
-                                label = { Text("${cat.displayName} ($count)", fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = PolishPrimaryRed,
-                                    selectedLabelColor = Color.White,
-                                    containerColor = Color.White
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
-                                    selected = isSelected,
-                                    borderColor = PolishBorder,
-                                    selectedBorderColor = PolishPrimaryRed
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 3. Section Header
-            item {
-                Row(
+            Surface(
+                color = PolishMaroonDark,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(16.dp)
                 ) {
-                    Text(
-                        text = "Menu Items (${filteredItems.size})",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Black,
-                            color = PolishTextDark
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = onBackClick,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Owner / Admin Portal 👑",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
+                                        fontSize = 18.sp
+                                    )
+                                )
+                                Text(
+                                    text = "Orders, Sound Alert & Rider Management",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
+                        }
+
+                        // Logout button
+                        OutlinedButton(
+                            onClick = onLogoutClick,
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Logout", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Stats Summary Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AdminStatChip(
+                            title = "Active Orders",
+                            value = "$pendingOrdersCount",
+                            isAlert = pendingOrdersCount > 0,
+                            modifier = Modifier.weight(1f)
                         )
-                    )
-                    Text(
-                        text = "Click ✏️ Edit to change rate",
-                        style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
-                    )
+                        AdminStatChip(
+                            title = "Menu Items",
+                            value = "${menuItems.size}",
+                            modifier = Modifier.weight(1f)
+                        )
+                        AdminStatChip(
+                            title = "Riders Fleet",
+                            value = "${riders.size}",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Top Action Buttons (Test Sound & Change PIN)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onTestNotificationSound,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PolishPrimaryRed,
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Test Ring/Sound 🔔", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = onChangePinClick,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Change PIN 🔑", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
 
-            // 4. Menu Items Cards List
-            items(filteredItems, key = { it.id }) { item ->
-                AdminItemManagementCard(
-                    item = item,
-                    onEditClick = { onEditItem(item) },
-                    onDeleteClick = { itemPendingDelete = item },
-                    onToggleStock = { inStock -> onToggleStock(item, inStock) }
+            // 2. Navigation Tabs
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.White,
+                contentColor = PolishPrimaryRed,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        color = PolishPrimaryRed,
+                        height = 3.dp
+                    )
+                }
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = {
+                        Text(
+                            "Orders (${orders.size})",
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 0) PolishPrimaryRed else PolishTextMuted
+                        )
+                    }
                 )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = {
+                        Text(
+                            "Menu Rates (${menuItems.size})",
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 1) PolishPrimaryRed else PolishTextMuted
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = {
+                        Text(
+                            "Riders (${riders.size})",
+                            fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 2) PolishPrimaryRed else PolishTextMuted
+                        )
+                    }
+                )
+            }
+
+            // 3. Tab Contents
+            when (selectedTab) {
+                0 -> {
+                    // Orders Management Tab
+                    AdminOrdersList(
+                        orders = orders,
+                        onUpdateOrderStatus = onUpdateOrderStatus,
+                        onAssignRiderClick = onAssignRiderClick
+                    )
+                }
+                1 -> {
+                    // Menu Management Tab
+                    AdminMenuList(
+                        menuItems = filteredItems,
+                        totalCount = menuItems.size,
+                        searchQuery = searchQuery,
+                        onSearchChange = { searchQuery = it },
+                        selectedCategory = selectedCategory,
+                        onCategoryChange = { selectedCategory = it },
+                        onEditItem = onEditItem,
+                        onDeleteItem = { itemPendingDelete = it },
+                        onToggleStock = onToggleStock,
+                        onResetConfirm = { showResetConfirmDialog = true }
+                    )
+                }
+                2 -> {
+                    // Riders Fleet Tab
+                    AdminRidersList(
+                        riders = riders,
+                        onAddRider = onAddRiderClick,
+                        onEditRider = onEditRiderClick,
+                        onDeleteRider = { riderPendingDelete = it },
+                        onToggleRiderEnabled = onToggleRiderEnabled
+                    )
+                }
             }
         }
     }
@@ -416,7 +436,7 @@ fun AdminPanelScreen(
             },
             text = {
                 Text(
-                    text = "تمام ڈیلز اور ریٹس کو اوریجنل فیکٹری سیٹنگز پر ری سیٹ کر دیا جائے گا۔ کیا آپ واقعی ری سیٹ کرنا چاہتے ہیں؟",
+                    text = "All items and rates will be reset to default settings. Are you sure you want to proceed?",
                     color = PolishTextMuted,
                     fontSize = 13.sp
                 )
@@ -463,7 +483,7 @@ fun AdminPanelScreen(
             },
             text = {
                 Text(
-                    text = "یہ آئٹم مینو سے مستقل ڈیلیٹ ہو جائے گا۔ کیا آپ جاری رکھنا چاہتے ہیں؟",
+                    text = "This item will be permanently removed from your active restaurant menu.",
                     color = PolishTextMuted,
                     fontSize = 13.sp
                 )
@@ -486,6 +506,587 @@ fun AdminPanelScreen(
                 }
             }
         )
+    }
+
+    // Confirmation Dialog for Deleting Rider
+    riderPendingDelete?.let { riderToDelete ->
+        AlertDialog(
+            onDismissRequest = { riderPendingDelete = null },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = PolishPrimaryRed,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Remove Rider '${riderToDelete.name}'?",
+                    fontWeight = FontWeight.Bold,
+                    color = PolishTextDark
+                )
+            },
+            text = {
+                Text(
+                    text = "This rider will be removed from your delivery fleet.",
+                    color = PolishTextMuted,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val id = riderToDelete.id
+                        riderPendingDelete = null
+                        onDeleteRiderClick(id)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed)
+                ) {
+                    Text("Remove 🗑️", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { riderPendingDelete = null }) {
+                    Text("Cancel", color = PolishTextMuted)
+                }
+            }
+        )
+    }
+}
+
+// ---------------- TAB 0: ORDERS MANAGEMENT ----------------
+@Composable
+private fun AdminOrdersList(
+    orders: List<Order>,
+    onUpdateOrderStatus: (orderId: Long, nextStatus: OrderStatus) -> Unit,
+    onAssignRiderClick: (Order) -> Unit
+) {
+    val context = LocalContext.current
+
+    if (orders.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Moped,
+                    contentDescription = null,
+                    tint = PolishTextMuted,
+                    modifier = Modifier.size(54.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "No Customer Orders Placed Yet",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = PolishMaroonDark
+                    )
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "When customers place orders, you will receive real-time push alerts and sound notifications here!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PolishTextMuted,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            items(orders, key = { it.orderId }) { order ->
+                AdminOrderCard(
+                    order = order,
+                    onUpdateStatus = { nextStatus -> onUpdateOrderStatus(order.orderId, nextStatus) },
+                    onAssignRider = { onAssignRiderClick(order) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminOrderCard(
+    order: Order,
+    onUpdateStatus: (OrderStatus) -> Unit,
+    onAssignRider: () -> Unit
+) {
+    val context = LocalContext.current
+    val isDelivered = order.status == OrderStatus.DELIVERED
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("admin_order_card_${order.orderId}"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isDelivered) Color(0xFFA5D6A7) else PolishBorder
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Order #${order.orderId}",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            color = PolishMaroonDark
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = order.formattedTime,
+                        style = MaterialTheme.typography.labelSmall.copy(color = PolishTextMuted)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = when (order.status) {
+                        OrderStatus.DELIVERED -> Color(0xFFE8F5E9)
+                        OrderStatus.OUT_FOR_DELIVERY -> PolishPrimaryContainerSubtle
+                        OrderStatus.READY_FOR_PICKUP -> Color(0xFFFFF3E0)
+                        OrderStatus.PREPARING_PIZZA -> Color(0xFFFFFDE7)
+                        else -> PolishBgLight
+                    }
+                ) {
+                    Text(
+                        text = "${order.status.iconEmoji} ${order.status.label}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Black,
+                            color = when (order.status) {
+                                OrderStatus.DELIVERED -> Color(0xFF2E7D32)
+                                OrderStatus.OUT_FOR_DELIVERY -> PolishPrimaryRed
+                                OrderStatus.READY_FOR_PICKUP -> Color(0xFFE65100)
+                                else -> PolishMaroonDark
+                            }
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = PolishBorder)
+
+            // Customer details & quick contact
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Customer: ${order.customerName}",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = PolishTextDark
+                        )
+                    )
+                    Text(
+                        text = "${order.customerPhone} • ${order.deliveryAddress}",
+                        style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted),
+                        maxLines = 1
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    IconButton(
+                        onClick = {
+                            WhatsAppOrderHelper.sendRawWhatsAppMessage(
+                                context,
+                                order.customerPhone,
+                                "Assalam-o-Alaikum ${order.customerName}! Your order #${order.orderId} is being prepared at Slice Smile Pizza Shop."
+                            )
+                        },
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(WhatsAppGreen)
+                    ) {
+                        Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+
+                    IconButton(
+                        onClick = { WhatsAppOrderHelper.makePhoneCall(context, order.customerPhone) },
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(PolishPrimaryRed)
+                    ) {
+                        Icon(Icons.Default.Call, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Items summary
+            Text(
+                text = order.itemsSummary,
+                style = MaterialTheme.typography.bodySmall.copy(color = PolishTextDark, lineHeight = 18.sp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(PolishBgLight, RoundedCornerShape(10.dp))
+                    .padding(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Payment & Assigned Rider Info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Total: Rs. ${order.totalAmount} (${if (order.paymentMethod == PaymentMethod.EASYPAISA) "Easypaisa" else "COD"})",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            color = PolishPrimaryRed
+                        )
+                    )
+                    Text(
+                        text = if (order.riderName.isNotBlank() && order.riderName != "Slice Smile Express Delivery") "Rider: ${order.riderName} (${order.riderPhone})" else "No rider assigned yet",
+                        style = MaterialTheme.typography.labelSmall.copy(color = PolishTextMuted)
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onAssignRider,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PolishPrimaryRed)
+                ) {
+                    Icon(Icons.Default.TwoWheeler, contentDescription = null, tint = PolishPrimaryRed, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Assign Rider 🛵", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PolishPrimaryRed)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Manual Status Buttons Row (All 5 Stages)
+            Text(
+                text = "Update Status Manually:",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                OrderStatus.entries.forEach { status ->
+                    val isCurrent = order.status == status
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isCurrent) PolishPrimaryRed else PolishBgLight,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isCurrent) PolishPrimaryRed else PolishBorder
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onUpdateStatus(status) }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(status.iconEmoji, fontSize = 13.sp)
+                            Text(
+                                text = when (status) {
+                                    OrderStatus.ORDER_RECEIVED -> "Received"
+                                    OrderStatus.PREPARING_PIZZA -> "Preparing"
+                                    OrderStatus.READY_FOR_PICKUP -> "Ready"
+                                    OrderStatus.OUT_FOR_DELIVERY -> "Out"
+                                    OrderStatus.DELIVERED -> "Delivered"
+                                    OrderStatus.CANCELLED -> "Cancelled"
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Medium,
+                                    color = if (isCurrent) Color.White else PolishMaroonDark
+                                ),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------- TAB 1: MENU & RATES MANAGEMENT ----------------
+@Composable
+private fun AdminMenuList(
+    menuItems: List<MenuItem>,
+    totalCount: Int,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    selectedCategory: MenuCategory?,
+    onCategoryChange: (MenuCategory?) -> Unit,
+    onEditItem: (MenuItem) -> Unit,
+    onDeleteItem: (MenuItem) -> Unit,
+    onToggleStock: (MenuItem, Boolean) -> Unit,
+    onResetConfirm: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 80.dp)
+    ) {
+        item {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchChange,
+                    placeholder = { Text("Search deal, pizza, burger to edit rate...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PolishTextMuted) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { onSearchChange("") }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = PolishPrimaryRed,
+                        unfocusedBorderColor = PolishBorder
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("admin_search_bar")
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedCategory == null || selectedCategory == MenuCategory.ALL,
+                            onClick = { onCategoryChange(MenuCategory.ALL) },
+                            label = { Text("All ($totalCount)", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PolishPrimaryRed,
+                                selectedLabelColor = Color.White,
+                                containerColor = Color.White
+                            )
+                        )
+                    }
+                    items(MenuCategory.entries.filter { it != MenuCategory.ALL }) { cat ->
+                        val isSelected = selectedCategory == cat
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onCategoryChange(cat) },
+                            label = { Text(cat.displayName, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PolishPrimaryRed,
+                                selectedLabelColor = Color.White,
+                                containerColor = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Menu Items (${menuItems.size})",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = PolishTextDark)
+                )
+                TextButton(onClick = onResetConfirm) {
+                    Text("Reset Menu Defaults 🔄", color = PolishPrimaryRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        items(menuItems, key = { it.id }) { item ->
+            AdminItemManagementCard(
+                item = item,
+                onEditClick = { onEditItem(item) },
+                onDeleteClick = { onDeleteItem(item) },
+                onToggleStock = { inStock -> onToggleStock(item, inStock) }
+            )
+        }
+    }
+}
+
+// ---------------- TAB 2: RIDERS FLEET MANAGEMENT ----------------
+@Composable
+private fun AdminRidersList(
+    riders: List<Rider>,
+    onAddRider: () -> Unit,
+    onEditRider: (Rider) -> Unit,
+    onDeleteRider: (Rider) -> Unit,
+    onToggleRiderEnabled: (Rider, Boolean) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Delivery Riders (${riders.size})",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Black,
+                        color = PolishMaroonDark
+                    )
+                )
+
+                Button(
+                    onClick = onAddRider,
+                    colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add New Rider", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        items(riders, key = { it.id }) { rider ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("admin_rider_card_${rider.id}"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(PolishPrimaryContainerSubtle),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TwoWheeler,
+                                    contentDescription = null,
+                                    tint = PolishPrimaryRed,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = rider.name,
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Black,
+                                        color = PolishTextDark
+                                    )
+                                )
+                                Text(
+                                    text = "${rider.phone} • PIN: ${rider.pin}",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = PolishPrimaryRed, fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (rider.isEnabled) "Enabled" else "Disabled",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (rider.isEnabled) BasilGreen else PolishPrimaryRed
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Switch(
+                                checked = rider.isEnabled,
+                                onCheckedChange = { onToggleRiderEnabled(rider, it) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = BasilGreen
+                                ),
+                                modifier = Modifier.size(width = 38.dp, height = 24.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Vehicle: ${rider.vehicle} • Deliveries: ${rider.totalDeliveries} • Rating: ⭐ ${rider.rating}",
+                        style = MaterialTheme.typography.labelSmall.copy(color = PolishTextMuted)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { onEditRider(rider) },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Edit Rider ✏️", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { onDeleteRider(rider) },
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PolishPrimaryRed),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -559,7 +1160,6 @@ fun AdminItemManagementCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Category Badge
                     Box(
                         modifier = Modifier
                             .background(PolishPrimaryContainerSubtle, RoundedCornerShape(6.dp))
@@ -575,7 +1175,6 @@ fun AdminItemManagementCard(
                         )
                     }
 
-                    // Optional Tag
                     item.tag?.let { tagText ->
                         Box(
                             modifier = Modifier
@@ -594,7 +1193,6 @@ fun AdminItemManagementCard(
                     }
                 }
 
-                // In Stock / Out of Stock Toggle
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = if (item.isAvailable) "In Stock" else "Out of Stock",
@@ -619,7 +1217,6 @@ fun AdminItemManagementCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Item Name & Description
             Text(
                 text = item.name,
                 style = MaterialTheme.typography.titleMedium.copy(
@@ -642,7 +1239,6 @@ fun AdminItemManagementCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Price / Sizes Display
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -703,7 +1299,6 @@ fun AdminItemManagementCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

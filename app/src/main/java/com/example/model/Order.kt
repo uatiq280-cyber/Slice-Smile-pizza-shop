@@ -15,20 +15,23 @@ enum class OrderStatus(
     val description: String,
     val iconEmoji: String
 ) {
-    ORDER_RECEIVED("Order Received", 0, "Order verified and queued at Slice Smile Pizza Workshop", "📥"),
-    PREPARING_PIZZA("Preparing Pizza", 1, "Dough freshly rolled, sauce & toppings layered, baking at 450°F", "🧑‍🍳"),
-    OUT_FOR_DELIVERY("Out for Delivery", 2, "Rider dispatched with thermal heat-insulated pizza bag", "🛵"),
-    DELIVERED("Delivered", 3, "Order delivered hot & fresh to your doorstep. Enjoy your meal!", "🎉"),
+    ORDER_RECEIVED("Order Received", 0, "Order received & confirmed at Slice Smile Pizza", "📥"),
+    PREPARING_PIZZA("Preparing", 1, "Dough freshly rolled, sauce & toppings layered, baking hot", "🧑‍🍳"),
+    READY_FOR_PICKUP("Ready", 2, "Fresh out of oven, packed & ready for rider pickup", "🍕"),
+    OUT_FOR_DELIVERY("Out for Delivery", 3, "Rider dispatched with insulated thermal pizza bag", "🛵"),
+    DELIVERED("Delivered", 4, "Order delivered hot & fresh to your doorstep. Enjoy!", "🎉"),
     CANCELLED("Cancelled", -1, "This order was cancelled", "❌");
 
     companion object {
         val PLACED = ORDER_RECEIVED
         val PREPARING = PREPARING_PIZZA
+        val READY = READY_FOR_PICKUP
     }
 }
 
 data class Order(
     val orderId: Long,
+    val userId: String = "guest_user",
     val itemsSummary: String,
     val itemsCount: Int,
     val subtotal: Int,
@@ -49,6 +52,7 @@ data class Order(
     val status: OrderStatus = OrderStatus.ORDER_RECEIVED,
     val timestamp: Long = System.currentTimeMillis(),
     val estimatedDeliveryMinutes: Int = 35,
+    val riderId: String? = null,
     val riderName: String = "Tariq Mahmood",
     val riderPhone: String = "0303-7448255",
     val riderVehicle: String = "Honda 125 • Thermal Insulated Box",
@@ -61,6 +65,8 @@ data class Order(
         return sdf.format(Date(timestamp))
     }
 
+    val formattedTime: String get() = formattedPlacedTime
+
     val estimatedArrivalFormatted: String get() {
         val arrivalTimeMillis = timestamp + (estimatedDeliveryMinutes * 60 * 1000L)
         val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
@@ -69,9 +75,10 @@ data class Order(
 
     val estimatedTimeRemainingText: String get() {
         return when (status) {
-            OrderStatus.ORDER_RECEIVED -> "Estimated Delivery: ~30-35 mins (ETA $estimatedArrivalFormatted)"
-            OrderStatus.PREPARING_PIZZA -> "Estimated Delivery: ~18-22 mins (Baking in oven 🔥)"
-            OrderStatus.OUT_FOR_DELIVERY -> "Estimated Delivery: ~5-10 mins (Rider on the way 🛵)"
+            OrderStatus.ORDER_RECEIVED -> "Received: ~30-35 mins (ETA $estimatedArrivalFormatted)"
+            OrderStatus.PREPARING_PIZZA -> "Preparing: ~18-22 mins (Baking in oven 🔥)"
+            OrderStatus.READY_FOR_PICKUP -> "Ready: ~10-15 mins (Ready for rider pickup 🍕)"
+            OrderStatus.OUT_FOR_DELIVERY -> "Out for Delivery: ~5-10 mins (Rider on the way 🛵)"
             OrderStatus.DELIVERED -> "Delivered Successfully (${formattedPlacedTime})"
             OrderStatus.CANCELLED -> "Order Cancelled"
         }
@@ -79,9 +86,10 @@ data class Order(
 
     val progressPercent: Float get() {
         return when (status) {
-            OrderStatus.ORDER_RECEIVED -> 0.25f
-            OrderStatus.PREPARING_PIZZA -> 0.55f
-            OrderStatus.OUT_FOR_DELIVERY -> 0.85f
+            OrderStatus.ORDER_RECEIVED -> 0.20f
+            OrderStatus.PREPARING_PIZZA -> 0.45f
+            OrderStatus.READY_FOR_PICKUP -> 0.68f
+            OrderStatus.OUT_FOR_DELIVERY -> 0.88f
             OrderStatus.DELIVERED -> 1.0f
             OrderStatus.CANCELLED -> 0.0f
         }

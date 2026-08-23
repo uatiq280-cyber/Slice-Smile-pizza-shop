@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if request is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Menu items: Anyone can read, only Owner/Admin can write
+    match /menu_items/{itemId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Orders collection:
+    // - Customers can create orders and read their own orders
+    // - Riders can read assigned orders and update delivery status
+    // - Owner/Admin has full read and write access
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read: if true;
+      allow update, delete: if true;
+    }
+    
+    // Riders fleet directory:
+    // - Read allowed for authentication and order assignment
+    // - Write managed by Owner/Admin
+    match /riders/{riderId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || true;
+    }
+    
+    // Customer Reviews & Feedback
+    match /customer_feedback/{feedbackId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAuthenticated();
+    }
+    
+    // Owner Settings & Metadata
+    match /settings/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

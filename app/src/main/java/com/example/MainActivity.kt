@@ -6,16 +6,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -40,15 +36,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.model.OrderStatus
+import com.example.service.NotificationHelper
 import com.example.ui.components.AdminChangePinDialog
 import com.example.ui.components.AdminEditItemDialog
 import com.example.ui.components.AdminLoginDialog
+import com.example.ui.components.AssignRiderDialog
 import com.example.ui.components.CustomerAuthDialog
 import com.example.ui.components.EasypaisaPaymentDialog
 import com.example.ui.components.FeedbackDialog
 import com.example.ui.components.ItemCustomizationDialog
 import com.example.ui.components.LocationSelectorSheet
 import com.example.ui.components.PizzaTopBar
+import com.example.ui.components.RiderLoginDialog
+import com.example.ui.components.RiderManagementDialog
 import com.example.ui.navigation.Screen
 import com.example.ui.navigation.navigationScreens
 import com.example.ui.screens.AdminPanelScreen
@@ -57,9 +57,15 @@ import com.example.ui.screens.LoyaltyScreen
 import com.example.ui.screens.MenuScreen
 import com.example.ui.screens.OrdersTrackScreen
 import com.example.ui.screens.ProfileScreen
+import com.example.ui.screens.RiderPortalScreen
 import com.example.ui.screens.ShopInfoReviewsScreen
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.PizzaRed
+import com.example.ui.theme.PolishBgLight
+import com.example.ui.theme.PolishBorder
+import com.example.ui.theme.PolishMaroonDark
+import com.example.ui.theme.PolishPrimaryContainer
+import com.example.ui.theme.PolishPrimaryRed
+import com.example.ui.theme.PolishTextMuted
 import com.example.viewmodel.PizzaShopViewModel
 import com.example.viewmodel.UiEvent
 import kotlinx.coroutines.flow.collectLatest
@@ -112,7 +118,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val easypaisaTrxId by viewModel.easypaisaTrxId.collectAsState()
 
     val ordersList by viewModel.ordersList.collectAsState()
-    val activeOrdersCount = ordersList.count { it.status != OrderStatus.DELIVERED }
+    val customerOrders by viewModel.customerOrders.collectAsState()
+    val activeOrdersCount = customerOrders.count { it.status != OrderStatus.DELIVERED }
 
     val loyaltyProfile by viewModel.loyaltyProfile.collectAsState()
     val customerReviews by viewModel.customerReviews.collectAsState()
@@ -124,6 +131,17 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val isShowingEditItemDialog by viewModel.isShowingEditItemDialog.collectAsState()
     val editingItem by viewModel.editingItem.collectAsState()
     val allMenuItems by viewModel.allMenuItems.collectAsState()
+
+    // Rider Fleet & Portal States
+    val allRiders by viewModel.allRiders.collectAsState()
+    val currentRider by viewModel.currentRider.collectAsState()
+    val isRiderLoggedIn by viewModel.isRiderLoggedIn.collectAsState()
+    val riderOrders by viewModel.riderOrders.collectAsState()
+    val isShowingRiderLogin by viewModel.isShowingRiderLogin.collectAsState()
+    val isShowingRiderDialog by viewModel.isShowingRiderDialog.collectAsState()
+    val editingRider by viewModel.editingRider.collectAsState()
+    val isShowingAssignRiderModal by viewModel.isShowingAssignRiderModal.collectAsState()
+    val selectedOrderForRiderAssign by viewModel.selectedOrderForRiderAssign.collectAsState()
 
     // Modals
     val customizingItem by viewModel.customizingItem.collectAsState()
@@ -178,72 +196,74 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = com.example.ui.theme.PolishBgLight,
-                tonalElevation = 0.dp,
-                modifier = Modifier
-                    .testTag("bottom_navigation_bar")
-                    .drawBehind {
-                        drawLine(
-                            color = com.example.ui.theme.PolishBorder,
-                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                            end = androidx.compose.ui.geometry.Offset(size.width, 0f),
-                            strokeWidth = 2.dp.toPx()
+            if (currentRoute != Screen.RiderPortal.route && currentRoute != Screen.Admin.route) {
+                NavigationBar(
+                    containerColor = PolishBgLight,
+                    tonalElevation = 0.dp,
+                    modifier = Modifier
+                        .testTag("bottom_navigation_bar")
+                        .drawBehind {
+                            drawLine(
+                                color = PolishBorder,
+                                start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                end = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                                strokeWidth = 2.dp.toPx()
+                            )
+                        }
+                ) {
+                    navigationScreens.forEach { screen ->
+                        val isSelected = currentRoute == screen.route
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = {
+                                if (currentRoute != screen.route) {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            icon = {
+                                BadgedBox(
+                                    badge = {
+                                        if (screen == Screen.Cart && cartCount > 0) {
+                                            Badge(containerColor = PolishPrimaryRed, contentColor = Color.White) {
+                                                Text(text = cartCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        } else if (screen == Screen.Orders && activeOrdersCount > 0) {
+                                            Badge(containerColor = PolishPrimaryRed, contentColor = Color.White) {
+                                                Text(text = activeOrdersCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSelected) screen.selectedIcon else screen.unselectedIcon,
+                                        contentDescription = screen.title,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            },
+                            label = {
+                                Text(
+                                    text = screen.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = PolishMaroonDark,
+                                selectedTextColor = PolishMaroonDark,
+                                indicatorColor = PolishPrimaryContainer,
+                                unselectedIconColor = PolishTextMuted,
+                                unselectedTextColor = PolishTextMuted
+                            ),
+                            modifier = Modifier.testTag("nav_item_${screen.route}")
                         )
                     }
-            ) {
-                navigationScreens.forEach { screen ->
-                    val isSelected = currentRoute == screen.route
-                    NavigationBarItem(
-                        selected = isSelected,
-                        onClick = {
-                            if (currentRoute != screen.route) {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        },
-                        icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (screen == Screen.Cart && cartCount > 0) {
-                                        Badge(containerColor = com.example.ui.theme.PolishPrimaryRed, contentColor = Color.White) {
-                                            Text(text = cartCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    } else if (screen == Screen.Orders && activeOrdersCount > 0) {
-                                        Badge(containerColor = com.example.ui.theme.PolishPrimaryRed, contentColor = Color.White) {
-                                            Text(text = activeOrdersCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = if (isSelected) screen.selectedIcon else screen.unselectedIcon,
-                                    contentDescription = screen.title,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        },
-                        label = {
-                            Text(
-                                text = screen.title,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = com.example.ui.theme.PolishMaroonDark,
-                            selectedTextColor = com.example.ui.theme.PolishMaroonDark,
-                            indicatorColor = com.example.ui.theme.PolishPrimaryContainer,
-                            unselectedIconColor = com.example.ui.theme.PolishTextMuted,
-                            unselectedTextColor = com.example.ui.theme.PolishTextMuted
-                        ),
-                        modifier = Modifier.testTag("nav_item_${screen.route}")
-                    )
                 }
             }
         }
@@ -316,7 +336,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
 
                 composable(Screen.Orders.route) {
                     OrdersTrackScreen(
-                        orders = ordersList,
+                        orders = customerOrders,
                         onOpenFeedback = viewModel::setFeedbackOrder,
                         onStatusAdvance = viewModel::updateManualOrderStatus,
                         onNavigateToMenu = {
@@ -353,6 +373,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                         loyaltyProfile = loyaltyProfile,
                         reviews = customerReviews,
                         isAdminLoggedIn = isAdminLoggedIn,
+                        isRiderLoggedIn = isRiderLoggedIn,
                         onOpenAuthDialog = { viewModel.showAuthDialog(true) },
                         onLogoutCustomer = { viewModel.logoutCustomer() },
                         onChangeAddressClick = { viewModel.showLocationSelector(true) },
@@ -361,6 +382,13 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                                 navController.navigate(Screen.Admin.route)
                             } else {
                                 viewModel.showAdminLoginDialog(true)
+                            }
+                        },
+                        onOpenRiderPortal = {
+                            if (isRiderLoggedIn) {
+                                navController.navigate(Screen.RiderPortal.route)
+                            } else {
+                                viewModel.showRiderLoginDialog(true)
                             }
                         },
                         onNavigateToOrders = {
@@ -376,6 +404,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                     if (isAdminLoggedIn) {
                         AdminPanelScreen(
                             menuItems = allMenuItems,
+                            orders = ordersList,
+                            riders = allRiders,
                             onAddNewItem = { viewModel.openAdminEditItem(null) },
                             onEditItem = { item -> viewModel.openAdminEditItem(item) },
                             onDeleteItem = { id -> viewModel.deleteMenuItem(id) },
@@ -388,12 +418,57 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             },
                             onBackClick = {
                                 navController.popBackStack()
+                            },
+                            onUpdateOrderStatus = { orderId, nextStatus ->
+                                viewModel.updateManualOrderStatus(orderId, nextStatus)
+                            },
+                            onAssignRiderClick = { order ->
+                                viewModel.openAssignRiderModal(order)
+                            },
+                            onAddRiderClick = {
+                                viewModel.openRiderDialog(null)
+                            },
+                            onEditRiderClick = { rider ->
+                                viewModel.openRiderDialog(rider)
+                            },
+                            onDeleteRiderClick = { riderId ->
+                                viewModel.deleteRider(riderId)
+                            },
+                            onToggleRiderEnabled = { rider, enabled ->
+                                viewModel.toggleRiderEnabled(rider, enabled)
+                            },
+                            onTestNotificationSound = {
+                                viewModel.testOwnerNotificationSound()
                             }
                         )
                     } else {
                         LaunchedEffect(Unit) {
                             viewModel.showAdminLoginDialog(true)
                             navController.popBackStack(Screen.Menu.route, false)
+                        }
+                    }
+                }
+
+                composable(Screen.RiderPortal.route) {
+                    if (isRiderLoggedIn && currentRider != null) {
+                        RiderPortalScreen(
+                            rider = currentRider!!,
+                            assignedOrders = riderOrders,
+                            onMarkOutForDelivery = { orderId ->
+                                viewModel.riderMarkOutForDelivery(orderId)
+                            },
+                            onMarkDelivered = { orderId ->
+                                viewModel.riderMarkDelivered(orderId)
+                            },
+                            onLogout = {
+                                viewModel.logoutRider()
+                                navController.popBackStack(Screen.Profile.route, false)
+                            }
+                        )
+                    } else {
+                        LaunchedEffect(Unit) {
+                            viewModel.showRiderLoginDialog(true)
+                            navController.popBackStack(Screen.Profile.route, false)
                         }
                     }
                 }
@@ -454,6 +529,42 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                     }
                 )
             }
+
+            // Rider Dialogs
+            if (isShowingRiderLogin) {
+                RiderLoginDialog(
+                    availableRiders = allRiders,
+                    onDismiss = { viewModel.showRiderLoginDialog(false) },
+                    onLogin = { phone, pin ->
+                        val success = viewModel.verifyAndLoginRider(phone, pin)
+                        if (success) {
+                            navController.navigate(Screen.RiderPortal.route)
+                        }
+                    }
+                )
+            }
+
+            if (isShowingRiderDialog) {
+                RiderManagementDialog(
+                    rider = editingRider,
+                    onDismiss = { viewModel.closeRiderDialog() },
+                    onSave = { rider ->
+                        viewModel.saveRider(rider)
+                    }
+                )
+            }
+
+            if (isShowingAssignRiderModal && selectedOrderForRiderAssign != null) {
+                AssignRiderDialog(
+                    order = selectedOrderForRiderAssign!!,
+                    availableRiders = allRiders,
+                    onDismiss = { viewModel.closeAssignRiderModal() },
+                    onAssign = { orderId, rider ->
+                        viewModel.assignRiderToOrder(orderId, rider)
+                    }
+                )
+            }
+
             // Customization Dialog
             customizingItem?.let { item ->
                 ItemCustomizationDialog(

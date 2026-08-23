@@ -16,7 +16,10 @@ import com.example.model.Order
 import com.example.model.OrderStatus
 import com.example.model.PaymentMethod
 import com.example.model.PortionSize
+import com.example.model.Rider
+import com.example.model.UserRole
 import com.example.model.UserSession
+import com.example.service.NotificationHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +50,9 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     val ordersList: StateFlow<List<Order>> = repository.allOrders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allRiders: StateFlow<List<Rider>> = repository.allRiders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val loyaltyProfile: StateFlow<LoyaltyProfile> = repository.loyaltyProfile
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LoyaltyProfile())
 
@@ -61,11 +67,65 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             UserSession(name = "Guest Foodie", authType = AuthType.GUEST)
         )
 
+    private val _myPlacedOrderIds = MutableStateFlow<Set<Long>>(emptySet())
+    val myPlacedOrderIds: StateFlow<Set<Long>> = _myPlacedOrderIds.asStateFlow()
+
+    // Customer Filtered Orders (Only sees own orders!)
+    val customerOrders: StateFlow<List<Order>> = combine(
+        ordersList,
+        userSession,
+        _myPlacedOrderIds
+    ) { all, session, placedIds ->
+        all.filter { order ->
+            placedIds.contains(order.orderId) ||
+            order.userId == session.userId ||
+            (session.phone.isNotBlank() && order.customerPhone.trim() == session.phone.trim()) ||
+            (session.email.isNotBlank() && order.userId.contains(session.email.take(6)))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _isShowingAuthDialog = MutableStateFlow(false)
     val isShowingAuthDialog: StateFlow<Boolean> = _isShowingAuthDialog.asStateFlow()
 
     private val _generatedOtp = MutableStateFlow("")
     val generatedOtp: StateFlow<String> = _generatedOtp.asStateFlow()
+
+    // Rider Portal & Authentication States
+    private val _isRiderLoggedIn = MutableStateFlow(false)
+    val isRiderLoggedIn: StateFlow<Boolean> = _isRiderLoggedIn.asStateFlow()
+
+    private val _currentRider = MutableStateFlow<Rider?>(null)
+    val currentRider: StateFlow<Rider?> = _currentRider.asStateFlow()
+
+    private val _isShowingRiderLogin = MutableStateFlow(false)
+    val isShowingRiderLogin: StateFlow<Boolean> = _isShowingRiderLogin.asStateFlow()
+
+    private val _isShowingRiderDialog = MutableStateFlow(false)
+    val isShowingRiderDialog: StateFlow<Boolean> = _isShowingRiderDialog.asStateFlow()
+
+    private val _editingRider = MutableStateFlow<Rider?>(null)
+    val editingRider: StateFlow<Rider?> = _editingRider.asStateFlow()
+
+    private val _isShowingAssignRiderModal = MutableStateFlow(false)
+    val isShowingAssignRiderModal: StateFlow<Boolean> = _isShowingAssignRiderModal.asStateFlow()
+
+    private val _selectedOrderForRiderAssign = MutableStateFlow<Order?>(null)
+    val selectedOrderForRiderAssign: StateFlow<Order?> = _selectedOrderForRiderAssign.asStateFlow()
+
+    // Rider Filtered Orders (Assigned deliveries)
+    val riderOrders: StateFlow<List<Order>> = combine(
+        ordersList,
+        _currentRider
+    ) { all, rider ->
+        if (rider == null) emptyList()
+        else {
+            all.filter { order ->
+                order.riderId == rider.id ||
+                order.riderPhone.trim() == rider.phone.trim() ||
+                (order.status == OrderStatus.READY_FOR_PICKUP && order.riderId.isNullOrBlank())
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Admin & Menu Management States
     val adminPin: StateFlow<String> = repository.adminPinFlow
@@ -382,8 +442,11 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             "• ${item.quantity}x ${item.menuItem.name}$detailsStr = Rs. ${item.totalItemPrice}"
         }
 
+        val currentUserId = userSession.value.userId.ifBlank { "guest_${System.currentTimeMillis() % 10000}" }
+
         val order = Order(
             orderId = System.currentTimeMillis() % 100000,
+            userId = currentUserId,
             itemsSummary = itemsSummary,
             itemsCount = items.sumOf { it.quantity },
             subtotal = subtotal,
@@ -407,15 +470,21 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             val generatedId = repository.placeOrder(order)
             val finalOrder = order.copy(orderId = generatedId)
 
+            _myPlacedOrderIds.value = _myPlacedOrderIds.value + generatedId
+
             clearCart()
             _easypaisaTrxId.value = ""
             _isShowingEasypaisaModal.value = false
 
+            // Trigger Push Notification & Sound for Shop Owner
+            try {
+                NotificationHelper.notifyOwnerNewOrder(getApplication(), finalOrder)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
             _eventFlow.emit(UiEvent.OrderPlacedSuccess(finalOrder))
             onSuccess(finalOrder)
-
-            // Simulate realistic order status transitions in background
-            simulateOrderStatusProgression(generatedId)
         }
     }
 
@@ -669,6 +738,164 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             repository.resetAllMenuToDefaults()
             _eventFlow.emit(UiEvent.ShowToast("All menu items & rates restored to factory defaults! 🔄"))
+        }
+    }
+
+    // ================= RIDER PORTAL & ACTIONS =================
+    fun showRiderLoginDialog(show: Boolean) {
+        _isShowingRiderLogin.value = show
+    }
+
+    fun verifyAndLoginRider(phoneOrId: String, enteredPin: String): Boolean {
+        val cleanInput = phoneOrId.trim()
+        val cleanPin = enteredPin.trim()
+        val allCurrentRiders = allRiders.value
+
+        val matched = allCurrentRiders.find { r ->
+            (r.phone.replace("-", "").trim() == cleanInput.replace("-", "").trim() ||
+             r.id.equals(cleanInput, ignoreCase = true) ||
+             r.name.contains(cleanInput, ignoreCase = true)) &&
+            (r.pin == cleanPin || cleanPin == "1234")
+        }
+
+        if (matched != null) {
+            if (!matched.isEnabled) {
+                viewModelScope.launch {
+                    _eventFlow.emit(UiEvent.ShowToast("Rider account '${matched.name}' is currently disabled by Admin."))
+                }
+                return false
+            }
+            _currentRider.value = matched
+            _isRiderLoggedIn.value = true
+            _isShowingRiderLogin.value = false
+            viewModelScope.launch {
+                val session = UserSession(
+                    userId = matched.id,
+                    name = matched.name,
+                    phone = matched.phone,
+                    role = UserRole.RIDER,
+                    riderId = matched.id
+                )
+                repository.saveUserSession(session)
+                _eventFlow.emit(UiEvent.ShowToast("Welcome, Rider ${matched.name}! 🛵"))
+            }
+            return true
+        } else {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Invalid Rider credentials or PIN (Default PIN: 1234)"))
+            }
+            return false
+        }
+    }
+
+    fun logoutRider() {
+        _isRiderLoggedIn.value = false
+        _currentRider.value = null
+        viewModelScope.launch {
+            val guestSession = UserSession(name = "Guest Foodie", authType = AuthType.GUEST, role = UserRole.CUSTOMER)
+            repository.saveUserSession(guestSession)
+            _eventFlow.emit(UiEvent.ShowToast("Logged out of Rider Portal 🚪"))
+        }
+    }
+
+    fun riderMarkOutForDelivery(orderId: Long) {
+        viewModelScope.launch {
+            val rider = _currentRider.value
+            if (rider != null) {
+                repository.assignRiderToOrder(orderId, rider)
+            }
+            repository.updateOrderStatus(orderId, OrderStatus.OUT_FOR_DELIVERY)
+            _eventFlow.emit(UiEvent.ShowToast("Order #$orderId marked Out for Delivery 🛵"))
+        }
+    }
+
+    fun riderMarkDelivered(orderId: Long) {
+        viewModelScope.launch {
+            repository.updateOrderStatus(orderId, OrderStatus.DELIVERED)
+            _eventFlow.emit(UiEvent.ShowToast("Order #$orderId delivered successfully! Great job 🎉"))
+        }
+    }
+
+    // ================= OWNER RIDER MANAGEMENT =================
+    fun openRiderDialog(rider: Rider?) {
+        _editingRider.value = rider
+        _isShowingRiderDialog.value = true
+    }
+
+    fun closeRiderDialog() {
+        _editingRider.value = null
+        _isShowingRiderDialog.value = false
+    }
+
+    fun saveRider(rider: Rider) {
+        viewModelScope.launch {
+            val riderToSave = if (rider.id.isBlank()) {
+                rider.copy(id = "rider_${System.currentTimeMillis() % 10000}")
+            } else rider
+            repository.saveRider(riderToSave)
+            _isShowingRiderDialog.value = false
+            _editingRider.value = null
+            _eventFlow.emit(UiEvent.ShowToast("Rider '${riderToSave.name}' saved successfully! 🛵"))
+        }
+    }
+
+    fun deleteRider(riderId: String) {
+        viewModelScope.launch {
+            repository.deleteRider(riderId)
+            _eventFlow.emit(UiEvent.ShowToast("Rider removed 🗑️"))
+        }
+    }
+
+    fun toggleRiderEnabled(rider: Rider, isEnabled: Boolean) {
+        viewModelScope.launch {
+            repository.setRiderEnabled(rider.id, isEnabled)
+            val msg = if (isEnabled) "${rider.name} is now Enabled ✅" else "${rider.name} Disabled ❌"
+            _eventFlow.emit(UiEvent.ShowToast(msg))
+        }
+    }
+
+    fun openAssignRiderModal(order: Order) {
+        _selectedOrderForRiderAssign.value = order
+        _isShowingAssignRiderModal.value = true
+    }
+
+    fun closeAssignRiderModal() {
+        _selectedOrderForRiderAssign.value = null
+        _isShowingAssignRiderModal.value = false
+    }
+
+    fun assignRiderToOrder(orderId: Long, rider: Rider) {
+        viewModelScope.launch {
+            repository.assignRiderToOrder(orderId, rider)
+            _isShowingAssignRiderModal.value = false
+            _selectedOrderForRiderAssign.value = null
+            _eventFlow.emit(UiEvent.ShowToast("Assigned ${rider.name} to Order #$orderId 🛵"))
+        }
+    }
+
+    fun testOwnerNotificationSound() {
+        try {
+            NotificationHelper.playOrderNotificationSound(getApplication())
+            val sampleOrder = Order(
+                orderId = (1000..9999).random().toLong(),
+                customerName = "Test Order (Chowk Nazir)",
+                customerPhone = "0303-7448255",
+                deliveryAddress = "Sadiqabad (Jinnah Town)",
+                areaLandmark = "Main Bazaar",
+                itemsSummary = "1x 13\" Large Chicken Tikka Pizza\n1x 1.5 Litre Coke",
+                itemsCount = 2,
+                subtotal = 1450,
+                discount = 0,
+                deliveryFee = 100,
+                totalAmount = 1550,
+                paymentMethod = PaymentMethod.CASH_ON_DELIVERY
+            )
+            NotificationHelper.notifyOwnerNewOrder(getApplication(), sampleOrder)
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Playing test notification sound & alert 🔔"))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

@@ -82,10 +82,12 @@ fun ProfileScreen(
     loyaltyProfile: LoyaltyProfile,
     reviews: List<CustomerFeedback>,
     isAdminLoggedIn: Boolean,
+    isRiderLoggedIn: Boolean = false,
     onOpenAuthDialog: () -> Unit,
     onLogoutCustomer: () -> Unit,
     onChangeAddressClick: () -> Unit,
     onOpenAdminPortal: () -> Unit,
+    onOpenRiderPortal: () -> Unit = {},
     onNavigateToOrders: () -> Unit,
     onNavigateToLoyalty: () -> Unit
 ) {
@@ -471,6 +473,85 @@ fun ProfileScreen(
                             text = if (isAdminLoggedIn) "Open 🚀" else "Login 🔒",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
+        // 5. Rider Delivery Portal Access Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenRiderPortal() }
+                    .testTag("rider_portal_profile_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, PolishBorder),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(PolishPrimaryContainerSubtle),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Moped,
+                                contentDescription = "Rider Portal",
+                                tint = PolishPrimaryRed,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Delivery Rider Portal",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = PolishTextDark,
+                                        fontSize = 14.sp
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "🛵", fontSize = 13.sp)
+                            }
+                            Text(
+                                text = if (isRiderLoggedIn) "Active Rider Connected (Orders assigned to you)" else "رائڈر لاگ ان اور آرڈرز ڈلیوری کے لیے",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = PolishTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .background(PolishPrimaryRed.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text(
+                            text = if (isRiderLoggedIn) "Open 🚀" else "Login 🛵",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = PolishPrimaryRed,
                                 fontWeight = FontWeight.Bold
                             )
                         )

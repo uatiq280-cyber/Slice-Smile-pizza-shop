@@ -16,9 +16,10 @@ import kotlinx.coroutines.launch
         FeedbackEntity::class,
         AdminConfigEntity::class,
         CustomMenuItemEntity::class,
-        UserSessionEntity::class
+        UserSessionEntity::class,
+        RiderEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun adminDao(): AdminDao
     abstract fun customMenuItemDao(): CustomMenuItemDao
     abstract fun userSessionDao(): UserSessionDao
+    abstract fun riderDao(): RiderDao
 
     companion object {
         @Volatile
@@ -50,6 +52,12 @@ abstract class AppDatabase : RoomDatabase() {
                                 AdminConfigEntity(
                                     key = "admin_pin",
                                     value = "1234"
+                                )
+                            )
+                            database.adminDao().setConfig(
+                                AdminConfigEntity(
+                                    key = "owner_id",
+                                    value = "admin"
                                 )
                             )
                             database.loyaltyDao().insertOrUpdateProfile(
@@ -80,6 +88,33 @@ abstract class AppDatabase : RoomDatabase() {
                                     foodTasteRating = 5,
                                     deliverySpeedRating = 4,
                                     comment = "Deal No 2 is incredible value. 2 zingers and 2 shawarmas were top quality."
+                                )
+                            )
+                            // Seed default riders
+                            database.riderDao().insertOrUpdate(
+                                RiderEntity(
+                                    id = "rider_tariq",
+                                    name = "Tariq Mahmood",
+                                    phone = "0303-7448255",
+                                    vehicle = "Honda 125 (Thermal Box)",
+                                    pin = "1234",
+                                    isAvailable = true,
+                                    isEnabled = true,
+                                    rating = 4.9,
+                                    totalDeliveries = 142
+                                )
+                            )
+                            database.riderDao().insertOrUpdate(
+                                RiderEntity(
+                                    id = "rider_bilal",
+                                    name = "Bilal Ahmed",
+                                    phone = "0305-1234567",
+                                    vehicle = "CD 70 (Insulated Bag)",
+                                    pin = "1234",
+                                    isAvailable = true,
+                                    isEnabled = true,
+                                    rating = 4.8,
+                                    totalDeliveries = 98
                                 )
                             )
                         }

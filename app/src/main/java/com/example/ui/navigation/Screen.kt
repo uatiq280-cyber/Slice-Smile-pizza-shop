@@ -30,6 +30,7 @@ sealed class Screen(
     data object ShopInfo : Screen("shop_info", "Reviews & Shop", Icons.Filled.Info, Icons.Outlined.Info)
     data object Profile : Screen("profile", "Profile", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle)
     data object Admin : Screen("admin", "Owner Portal", Icons.Filled.AdminPanelSettings, Icons.Outlined.AdminPanelSettings)
+    data object RiderPortal : Screen("rider_portal", "Rider Portal", Icons.Filled.Moped, Icons.Outlined.Moped)
 }
 
 val navigationScreens = listOf(

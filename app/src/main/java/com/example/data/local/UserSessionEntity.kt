@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import com.example.model.AuthType
+import com.example.model.UserRole
 import com.example.model.UserSession
 import kotlinx.coroutines.flow.Flow
 
@@ -20,13 +21,20 @@ data class UserSessionEntity(
     val email: String,
     val authType: String,
     val isVerified: Boolean,
-    val deliveryAddress: String
+    val deliveryAddress: String,
+    val roleName: String = UserRole.CUSTOMER.name,
+    val riderId: String? = null
 ) {
     fun toDomain(): UserSession {
         val type = try {
             AuthType.valueOf(authType)
         } catch (e: Exception) {
             AuthType.GUEST
+        }
+        val role = try {
+            UserRole.valueOf(roleName)
+        } catch (e: Exception) {
+            UserRole.CUSTOMER
         }
         return UserSession(
             userId = userId,
@@ -35,7 +43,9 @@ data class UserSessionEntity(
             email = email,
             authType = type,
             isVerified = isVerified,
-            deliveryAddress = deliveryAddress
+            deliveryAddress = deliveryAddress,
+            role = role,
+            riderId = riderId
         )
     }
 
@@ -49,7 +59,9 @@ data class UserSessionEntity(
                 email = session.email,
                 authType = session.authType.name,
                 isVerified = session.isVerified,
-                deliveryAddress = session.deliveryAddress
+                deliveryAddress = session.deliveryAddress,
+                roleName = session.role.name,
+                riderId = session.riderId
             )
         }
     }

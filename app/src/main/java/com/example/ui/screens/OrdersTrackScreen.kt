@@ -296,6 +296,7 @@ fun RealTimeOrderTrackingCard(
                     color = when (order.status) {
                         OrderStatus.ORDER_RECEIVED -> Color(0xFFE3F2FD)
                         OrderStatus.PREPARING_PIZZA -> PolishPrimaryContainer
+                        OrderStatus.READY_FOR_PICKUP -> Color(0xFFEDE7F6)
                         OrderStatus.OUT_FOR_DELIVERY -> Color(0xFFFFF3E0)
                         OrderStatus.DELIVERED -> Color(0xFFE8F5E9)
                         OrderStatus.CANCELLED -> Color(0xFFFFEBEE)
@@ -305,6 +306,7 @@ fun RealTimeOrderTrackingCard(
                         color = when (order.status) {
                             OrderStatus.ORDER_RECEIVED -> Color(0xFF90CAF9)
                             OrderStatus.PREPARING_PIZZA -> PolishBorderStrong
+                            OrderStatus.READY_FOR_PICKUP -> Color(0xFFD1C4E9)
                             OrderStatus.OUT_FOR_DELIVERY -> Color(0xFFFFB74D)
                             OrderStatus.DELIVERED -> Color(0xFFA5D6A7)
                             OrderStatus.CANCELLED -> Color(0xFFEF9A9A)
@@ -332,6 +334,7 @@ fun RealTimeOrderTrackingCard(
                                 color = when (order.status) {
                                     OrderStatus.ORDER_RECEIVED -> Color(0xFF1565C0)
                                     OrderStatus.PREPARING_PIZZA -> PolishMaroonDark
+                                    OrderStatus.READY_FOR_PICKUP -> Color(0xFF512DA8)
                                     OrderStatus.OUT_FOR_DELIVERY -> Color(0xFFE65100)
                                     OrderStatus.DELIVERED -> Color(0xFF2E7D32)
                                     OrderStatus.CANCELLED -> Color(0xFFC62828)
@@ -672,7 +675,7 @@ fun RealTimeOrderTrackingCard(
                     }
                 }
             } else {
-                // Interactive Demo Status Advance simulation button
+                // Interactive Status Advance simulation button
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -681,7 +684,8 @@ fun RealTimeOrderTrackingCard(
                         .clickable {
                             val next = when (order.status) {
                                 OrderStatus.ORDER_RECEIVED -> OrderStatus.PREPARING_PIZZA
-                                OrderStatus.PREPARING_PIZZA -> OrderStatus.OUT_FOR_DELIVERY
+                                OrderStatus.PREPARING_PIZZA -> OrderStatus.READY_FOR_PICKUP
+                                OrderStatus.READY_FOR_PICKUP -> OrderStatus.OUT_FOR_DELIVERY
                                 OrderStatus.OUT_FOR_DELIVERY -> OrderStatus.DELIVERED
                                 else -> OrderStatus.DELIVERED
                             }
@@ -717,8 +721,9 @@ fun RealTimeStatusStepper(
     progress: Float
 ) {
     val steps = listOf(
-        Triple("Order Received", OrderStatus.ORDER_RECEIVED, "📥"),
-        Triple("Preparing Pizza", OrderStatus.PREPARING_PIZZA, "🧑‍🍳"),
+        Triple("Received", OrderStatus.ORDER_RECEIVED, "📥"),
+        Triple("Preparing", OrderStatus.PREPARING_PIZZA, "🧑‍🍳"),
+        Triple("Ready", OrderStatus.READY_FOR_PICKUP, "🍕"),
         Triple("Out for Delivery", OrderStatus.OUT_FOR_DELIVERY, "🛵"),
         Triple("Delivered", OrderStatus.DELIVERED, "🎉")
     )
