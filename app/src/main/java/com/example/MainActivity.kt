@@ -40,6 +40,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.model.OrderStatus
+import com.example.ui.components.AdminChangePinDialog
+import com.example.ui.components.AdminEditItemDialog
+import com.example.ui.components.AdminLoginDialog
+import com.example.ui.components.CustomerAuthDialog
 import com.example.ui.components.EasypaisaPaymentDialog
 import com.example.ui.components.FeedbackDialog
 import com.example.ui.components.ItemCustomizationDialog
@@ -47,10 +51,12 @@ import com.example.ui.components.LocationSelectorSheet
 import com.example.ui.components.PizzaTopBar
 import com.example.ui.navigation.Screen
 import com.example.ui.navigation.navigationScreens
+import com.example.ui.screens.AdminPanelScreen
 import com.example.ui.screens.CartScreen
 import com.example.ui.screens.LoyaltyScreen
 import com.example.ui.screens.MenuScreen
 import com.example.ui.screens.OrdersTrackScreen
+import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.ShopInfoReviewsScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.PizzaRed
@@ -93,6 +99,10 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val grandTotal by viewModel.grandTotal.collectAsState()
     val applyCoinsDiscount by viewModel.applyCoinsDiscount.collectAsState()
 
+    val userSession by viewModel.userSession.collectAsState()
+    val isShowingAuthDialog by viewModel.isShowingAuthDialog.collectAsState()
+    val ownerId by viewModel.ownerId.collectAsState()
+
     val customerName by viewModel.customerName.collectAsState()
     val customerPhone by viewModel.customerPhone.collectAsState()
     val deliveryAddress by viewModel.deliveryAddress.collectAsState()
@@ -106,6 +116,14 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
 
     val loyaltyProfile by viewModel.loyaltyProfile.collectAsState()
     val customerReviews by viewModel.customerReviews.collectAsState()
+
+    // Admin & Menu Management States
+    val isAdminLoggedIn by viewModel.isAdminLoggedIn.collectAsState()
+    val isShowingAdminLogin by viewModel.isShowingAdminLogin.collectAsState()
+    val isShowingChangePinDialog by viewModel.isShowingChangePinDialog.collectAsState()
+    val isShowingEditItemDialog by viewModel.isShowingEditItemDialog.collectAsState()
+    val editingItem by viewModel.editingItem.collectAsState()
+    val allMenuItems by viewModel.allMenuItems.collectAsState()
 
     // Modals
     val customizingItem by viewModel.customizingItem.collectAsState()
@@ -149,6 +167,13 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                     }
                 },
                 onLocationClick = { viewModel.showLocationSelector(true) },
+                onAdminClick = {
+                    if (isAdminLoggedIn) {
+                        navController.navigate(Screen.Admin.route)
+                    } else {
+                        viewModel.showAdminLoginDialog(true)
+                    }
+                },
                 currentAddress = deliveryAddress
             )
         },
@@ -311,9 +336,123 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
 
                 composable(Screen.ShopInfo.route) {
                     ShopInfoReviewsScreen(
-                        reviews = customerReviews
+                        reviews = customerReviews,
+                        onOpenAdminPortal = {
+                            if (isAdminLoggedIn) {
+                                navController.navigate(Screen.Admin.route)
+                            } else {
+                                viewModel.showAdminLoginDialog(true)
+                            }
+                        }
                     )
                 }
+
+                composable(Screen.Profile.route) {
+                    ProfileScreen(
+                        userSession = userSession,
+                        loyaltyProfile = loyaltyProfile,
+                        reviews = customerReviews,
+                        isAdminLoggedIn = isAdminLoggedIn,
+                        onOpenAuthDialog = { viewModel.showAuthDialog(true) },
+                        onLogoutCustomer = { viewModel.logoutCustomer() },
+                        onChangeAddressClick = { viewModel.showLocationSelector(true) },
+                        onOpenAdminPortal = {
+                            if (isAdminLoggedIn) {
+                                navController.navigate(Screen.Admin.route)
+                            } else {
+                                viewModel.showAdminLoginDialog(true)
+                            }
+                        },
+                        onNavigateToOrders = {
+                            navController.navigate(Screen.Orders.route)
+                        },
+                        onNavigateToLoyalty = {
+                            navController.navigate(Screen.Loyalty.route)
+                        }
+                    )
+                }
+
+                composable(Screen.Admin.route) {
+                    if (isAdminLoggedIn) {
+                        AdminPanelScreen(
+                            menuItems = allMenuItems,
+                            onAddNewItem = { viewModel.openAdminEditItem(null) },
+                            onEditItem = { item -> viewModel.openAdminEditItem(item) },
+                            onDeleteItem = { id -> viewModel.deleteMenuItem(id) },
+                            onToggleStock = { item, inStock -> viewModel.toggleItemStock(item, inStock) },
+                            onResetDefaults = { viewModel.resetMenuToDefaults() },
+                            onChangePinClick = { viewModel.showChangePinDialog(true) },
+                            onLogoutClick = {
+                                viewModel.logoutAdmin()
+                                navController.popBackStack(Screen.Menu.route, false)
+                            },
+                            onBackClick = {
+                                navController.popBackStack()
+                            }
+                        )
+                    } else {
+                        LaunchedEffect(Unit) {
+                            viewModel.showAdminLoginDialog(true)
+                            navController.popBackStack(Screen.Menu.route, false)
+                        }
+                    }
+                }
+            }
+
+            // Customer Authentication Modal (Guest, Mobile OTP, Gmail)
+            if (isShowingAuthDialog) {
+                CustomerAuthDialog(
+                    currentName = customerName,
+                    currentPhone = customerPhone,
+                    currentAddress = deliveryAddress,
+                    onDismiss = { viewModel.showAuthDialog(false) },
+                    onContinueAsGuest = { name ->
+                        viewModel.loginAsGuest(name)
+                    },
+                    onRequestOtp = { phone ->
+                        viewModel.requestPhoneOtp(phone)
+                    },
+                    onVerifyOtpAndLogin = { phone, otp, name ->
+                        viewModel.verifyAndLoginWithPhone(phone, otp, name)
+                    },
+                    onLoginWithGoogle = { email, name ->
+                        viewModel.loginWithGoogle(email, name)
+                    }
+                )
+            }
+
+            // Admin / Owner Dialogs
+            if (isShowingAdminLogin) {
+                AdminLoginDialog(
+                    onDismiss = { viewModel.showAdminLoginDialog(false) },
+                    onLoginSubmit = { enteredOwnerId, enteredPin ->
+                        val isValid = viewModel.verifyAndLoginAdmin(enteredOwnerId, enteredPin)
+                        if (isValid) {
+                            navController.navigate(Screen.Admin.route)
+                        }
+                        isValid
+                    }
+                )
+            }
+
+            if (isShowingChangePinDialog) {
+                AdminChangePinDialog(
+                    currentOwnerIdValue = ownerId,
+                    onDismiss = { viewModel.showChangePinDialog(false) },
+                    onSubmitChange = { currentPin, newOwnerId, newPin ->
+                        viewModel.changeOwnerCredentials(currentPin, newOwnerId, newPin)
+                    }
+                )
+            }
+
+            if (isShowingEditItemDialog) {
+                AdminEditItemDialog(
+                    itemToEdit = editingItem,
+                    onDismiss = { viewModel.closeAdminEditItem() },
+                    onSave = { item ->
+                        viewModel.saveMenuItem(item)
+                    }
+                )
             }
 composable(Screen.Admin.route) {
     AdminPanelScreen(

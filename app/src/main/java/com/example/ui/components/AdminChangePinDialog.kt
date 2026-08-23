@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material3.AlertDialog
@@ -48,9 +49,11 @@ import com.example.ui.theme.PolishTextMuted
 
 @Composable
 fun AdminChangePinDialog(
+    currentOwnerIdValue: String = "admin",
     onDismiss: () -> Unit,
-    onSubmitChange: (currentPin: String, newPin: String) -> Boolean
+    onSubmitChange: (currentPin: String, newOwnerId: String, newPin: String) -> Boolean
 ) {
+    var newOwnerId by remember { mutableStateOf(currentOwnerIdValue) }
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
@@ -58,15 +61,15 @@ fun AdminChangePinDialog(
 
     val handleSave = {
         if (currentPin.isBlank()) {
-            errorMessage = "Please enter your current PIN"
+            errorMessage = "Please enter your current Password / PIN"
         } else if (newPin.trim().length < 4) {
-            errorMessage = "New PIN must be at least 4 digits long"
+            errorMessage = "New Password must be at least 4 characters long"
         } else if (newPin != confirmPin) {
-            errorMessage = "New PIN and Confirm PIN do not match!"
+            errorMessage = "New Password and Confirm Password do not match!"
         } else {
-            val success = onSubmitChange(currentPin, newPin)
+            val success = onSubmitChange(currentPin.trim(), newOwnerId.trim(), newPin.trim())
             if (!success) {
-                errorMessage = "Current PIN is incorrect!"
+                errorMessage = "Current Password is incorrect!"
             }
         }
     }
@@ -82,13 +85,13 @@ fun AdminChangePinDialog(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .background(PolishPrimaryContainerSubtle, RoundedCornerShape(12.dp)),
+                        .size(44.dp)
+                        .background(PolishPrimaryContainerSubtle, RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.LockReset,
-                        contentDescription = "Change Password",
+                        contentDescription = "Change Credentials",
                         tint = PolishPrimaryRed,
                         modifier = Modifier.size(24.dp)
                     )
@@ -96,7 +99,7 @@ fun AdminChangePinDialog(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Change Admin PIN",
+                        text = "Change Owner Credentials 🔑",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = PolishTextDark,
@@ -104,7 +107,7 @@ fun AdminChangePinDialog(
                         )
                     )
                     Text(
-                        text = "اپنا نیا پاس ورڈ سیٹ کریں",
+                        text = "اپنا نیا اونر یوزرنیم اور پاس ورڈ سیٹ کریں",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = PolishTextMuted,
                             fontSize = 11.sp
@@ -116,16 +119,41 @@ fun AdminChangePinDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
+                    value = newOwnerId,
+                    onValueChange = {
+                        newOwnerId = it
+                        errorMessage = null
+                    },
+                    label = { Text("Owner ID / Email (اونر آئی ڈی)") },
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null, tint = PolishPrimaryRed)
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PolishPrimaryRed,
+                        unfocusedBorderColor = PolishInputBorder
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
                     value = currentPin,
                     onValueChange = {
                         currentPin = it
                         errorMessage = null
                     },
-                    label = { Text("Current PIN (موجودہ پاس ورڈ)") },
+                    label = { Text("Current Password (موجودہ پاس ورڈ)") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword,
+                        keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Next
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -144,12 +172,12 @@ fun AdminChangePinDialog(
                         newPin = it
                         errorMessage = null
                     },
-                    label = { Text("New PIN (نیا پاس ورڈ)") },
-                    placeholder = { Text("e.g. 5678") },
+                    label = { Text("New Password (نیا پاس ورڈ)") },
+                    placeholder = { Text("Min 4 characters") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword,
+                        keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Next
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -168,11 +196,11 @@ fun AdminChangePinDialog(
                         confirmPin = it
                         errorMessage = null
                     },
-                    label = { Text("Confirm New PIN (دوبارہ لکھیں)") },
+                    label = { Text("Confirm New Password (دوبارہ لکھیں)") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword,
+                        keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Done
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -202,7 +230,7 @@ fun AdminChangePinDialog(
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Save New PIN 💾", fontWeight = FontWeight.Bold)
+                Text("Save Credentials 💾", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

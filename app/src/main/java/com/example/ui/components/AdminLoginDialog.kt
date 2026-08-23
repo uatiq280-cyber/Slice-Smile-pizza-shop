@@ -14,8 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -56,19 +58,21 @@ import com.example.ui.theme.PolishTextMuted
 @Composable
 fun AdminLoginDialog(
     onDismiss: () -> Unit,
-    onLoginSubmit: (String) -> Boolean
+    onLoginSubmit: (ownerId: String, pin: String) -> Boolean
 ) {
+    var ownerIdText by remember { mutableStateOf("") }
     var pinText by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val handleLogin = {
         if (pinText.isBlank()) {
-            errorMessage = "Please enter your Admin PIN"
+            errorMessage = "Please enter your Owner Password / PIN"
         } else {
-            val success = onLoginSubmit(pinText)
+            val id = if (ownerIdText.isBlank()) "admin" else ownerIdText.trim()
+            val success = onLoginSubmit(id, pinText.trim())
             if (!success) {
-                errorMessage = "Incorrect PIN! Please try again."
+                errorMessage = "Incorrect Owner ID or Password! Please try again."
             }
         }
     }
@@ -84,21 +88,21 @@ fun AdminLoginDialog(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .background(PolishPrimaryContainerSubtle, RoundedCornerShape(12.dp)),
+                        .size(46.dp)
+                        .background(PolishPrimaryContainerSubtle, RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "Admin Lock",
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = "Owner Lock",
                         tint = PolishPrimaryRed,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Owner / Admin Portal",
+                        text = "Owner / Admin Portal 👑",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = PolishTextDark,
@@ -106,7 +110,7 @@ fun AdminLoginDialog(
                         )
                     )
                     Text(
-                        text = "ریٹس اور ڈیلز تبدیل کرنے کے لیے لاگ ان کریں",
+                        text = "دکان کے مالک اور مینیجر کے لیے الگ پورٹل",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = PolishTextMuted,
                             fontSize = 11.sp
@@ -118,7 +122,7 @@ fun AdminLoginDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Enter your secret Admin PIN to manage prices, add deals, and update stock.",
+                    text = "Sign in with your Owner Credentials to edit rates, add deals, and manage live stock.",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = PolishTextMuted,
                         fontSize = 13.sp
@@ -127,18 +131,53 @@ fun AdminLoginDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
+                // Owner ID Input
+                OutlinedTextField(
+                    value = ownerIdText,
+                    onValueChange = {
+                        ownerIdText = it
+                        errorMessage = null
+                    },
+                    label = { Text("Owner ID / Username") },
+                    placeholder = { Text("admin or owner@slicesmile.com") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    ),
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = null,
+                            tint = PolishPrimaryRed
+                        )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PolishPrimaryRed,
+                        unfocusedBorderColor = PolishInputBorder,
+                        focusedLabelColor = PolishPrimaryRed
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("admin_owner_id_input")
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Owner PIN / Password Input
                 OutlinedTextField(
                     value = pinText,
                     onValueChange = {
                         pinText = it
                         errorMessage = null
                     },
-                    label = { Text("Admin PIN (پاس ورڈ)") },
-                    placeholder = { Text("Default: 1234") },
+                    label = { Text("Owner Password / PIN (پاس ورڈ)") },
+                    placeholder = { Text("Default PIN: 1234") },
                     singleLine = true,
                     visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword,
+                        keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Done
                     ),
                     keyboardActions = KeyboardActions(onDone = { handleLogin() }),
@@ -168,7 +207,7 @@ fun AdminLoginDialog(
                             )
                         } else {
                             Text(
-                                text = "Default PIN: 1234 (آپ پینل کے اندر سے پاس ورڈ تبدیل کر سکتے ہیں)",
+                                text = "Default: ID: admin | Password: 1234",
                                 color = PolishTextMuted,
                                 fontSize = 11.sp
                             )
@@ -197,7 +236,7 @@ fun AdminLoginDialog(
                 modifier = Modifier.testTag("admin_login_btn")
             ) {
                 Text(
-                    text = "Unlock Portal 🔓",
+                    text = "Login to Portal 👑",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )

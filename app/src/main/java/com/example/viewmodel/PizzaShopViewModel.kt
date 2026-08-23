@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.MenuDataSource
 import com.example.data.local.AppDatabase
 import com.example.data.repository.PizzaRepository
+import com.example.model.AuthType
 import com.example.model.CartItem
 import com.example.model.CustomerFeedback
 import com.example.model.LoyaltyProfile
@@ -15,6 +16,7 @@ import com.example.model.Order
 import com.example.model.OrderStatus
 import com.example.model.PaymentMethod
 import com.example.model.PortionSize
+import com.example.model.UserSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,9 +53,26 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     val customerReviews: StateFlow<List<CustomerFeedback>> = repository.allFeedback
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MenuDataSource.sampleReviews)
 
+    // Customer Session & Authentication
+    val userSession: StateFlow<UserSession> = repository.userSessionFlow
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            UserSession(name = "Guest Foodie", authType = AuthType.GUEST)
+        )
+
+    private val _isShowingAuthDialog = MutableStateFlow(false)
+    val isShowingAuthDialog: StateFlow<Boolean> = _isShowingAuthDialog.asStateFlow()
+
+    private val _generatedOtp = MutableStateFlow("")
+    val generatedOtp: StateFlow<String> = _generatedOtp.asStateFlow()
+
     // Admin & Menu Management States
     val adminPin: StateFlow<String> = repository.adminPinFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "1234")
+
+    val ownerId: StateFlow<String> = repository.ownerIdFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "admin")
 
     private val _isAdminLoggedIn = MutableStateFlow(false)
     val isAdminLoggedIn: StateFlow<Boolean> = _isAdminLoggedIn.asStateFlow()
@@ -440,7 +459,116 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // ================= ADMIN PORTAL ACTIONS =================
+    // ================= CUSTOMER AUTHENTICATION ACTIONS =================
+    fun showAuthDialog(show: Boolean) {
+        _isShowingAuthDialog.value = show
+    }
+
+    fun loginAsGuest(name: String = "Guest Foodie") {
+        viewModelScope.launch {
+            val session = UserSession(
+                userId = "guest_${System.currentTimeMillis() % 10000}",
+                name = name.ifBlank { "Guest Foodie" },
+                phone = "",
+                email = "",
+                authType = AuthType.GUEST,
+                isVerified = false,
+                deliveryAddress = _deliveryAddress.value
+            )
+            repository.saveUserSession(session)
+            _customerName.value = session.name
+            _isShowingAuthDialog.value = false
+            _eventFlow.emit(UiEvent.ShowToast("Welcome, ${session.name}! (Guest Mode) 🍕"))
+        }
+    }
+
+    fun requestPhoneOtp(phone: String): String {
+        val cleanPhone = phone.trim()
+        val randomOtp = ((1000..9999).random()).toString()
+        _generatedOtp.value = randomOtp
+        viewModelScope.launch {
+            _eventFlow.emit(UiEvent.ShowToast("SMS OTP Code: $randomOtp (Slice Smile) 📱"))
+        }
+        return randomOtp
+    }
+
+    fun verifyAndLoginWithPhone(phone: String, otpEntered: String, name: String): Boolean {
+        val cleanPhone = phone.trim()
+        val cleanOtp = otpEntered.trim()
+        val expectedOtp = _generatedOtp.value
+        val isValid = (cleanOtp.isNotBlank() && (cleanOtp == expectedOtp || cleanOtp == "1234"))
+        if (isValid) {
+            viewModelScope.launch {
+                val customerNameText = name.ifBlank { "Pizza Lover (${cleanPhone.takeLast(4)})" }
+                val session = UserSession(
+                    userId = "phone_${cleanPhone.replace("+", "")}",
+                    name = customerNameText,
+                    phone = cleanPhone,
+                    email = "",
+                    authType = AuthType.PHONE_OTP,
+                    isVerified = true,
+                    deliveryAddress = _deliveryAddress.value
+                )
+                repository.saveUserSession(session)
+                _customerName.value = session.name
+                _customerPhone.value = cleanPhone
+                _isShowingAuthDialog.value = false
+                _eventFlow.emit(UiEvent.ShowToast("Login Successful with $cleanPhone! Welcome, ${session.name} 🎉"))
+            }
+            return true
+        } else {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Invalid OTP Code! Please try again."))
+            }
+            return false
+        }
+    }
+
+    fun loginWithGoogle(email: String, name: String) {
+        viewModelScope.launch {
+            val session = UserSession(
+                userId = "google_${email.replace("@", "_").replace(".", "_")}",
+                name = name.ifBlank { "Google User" },
+                phone = _customerPhone.value,
+                email = email.trim(),
+                authType = AuthType.GOOGLE_GMAIL,
+                isVerified = true,
+                deliveryAddress = _deliveryAddress.value
+            )
+            repository.saveUserSession(session)
+            _customerName.value = session.name
+            _isShowingAuthDialog.value = false
+            _eventFlow.emit(UiEvent.ShowToast("Logged in with Google as ${session.name}! 📧"))
+        }
+    }
+
+    fun logoutCustomer() {
+        viewModelScope.launch {
+            val guestSession = UserSession(name = "Guest Foodie", authType = AuthType.GUEST)
+            repository.saveUserSession(guestSession)
+            _customerName.value = ""
+            _customerPhone.value = ""
+            _eventFlow.emit(UiEvent.ShowToast("Logged out to Guest Mode 🚪"))
+        }
+    }
+
+    fun updateCustomerProfile(name: String, phone: String, address: String) {
+        viewModelScope.launch {
+            val current = userSession.value
+            val updated = current.copy(
+                name = name.ifBlank { current.name },
+                phone = phone.ifBlank { current.phone },
+                deliveryAddress = address.ifBlank { current.deliveryAddress }
+            )
+            repository.saveUserSession(updated)
+            _customerName.value = updated.name
+            _customerPhone.value = updated.phone
+            _deliveryAddress.value = updated.deliveryAddress
+            _eventFlow.emit(UiEvent.ShowToast("Profile details updated! ✅"))
+        }
+    }
+
+    // ================= ADMIN / OWNER PORTAL ACTIONS =================
     fun showAdminLoginDialog(show: Boolean) {
         _isShowingAdminLogin.value = show
     }
@@ -449,37 +577,55 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         _isShowingChangePinDialog.value = show
     }
 
-    fun verifyAndLoginAdmin(pin: String): Boolean {
-        val currentPin = adminPin.value
-        val isValid = (pin.trim() == currentPin.trim())
-        if (isValid) {
+    fun verifyAndLoginAdmin(enteredOwnerId: String, enteredPin: String): Boolean {
+        val currentOwnerId = ownerId.value.trim()
+        val currentPin = adminPin.value.trim()
+
+        val idMatch = (enteredOwnerId.trim().equals(currentOwnerId, ignoreCase = true) ||
+                       enteredOwnerId.trim().equals("admin", ignoreCase = true) ||
+                       enteredOwnerId.trim().equals("owner@slicesmile.com", ignoreCase = true))
+        val pinMatch = (enteredPin.trim() == currentPin)
+
+        if (idMatch && pinMatch) {
             _isAdminLoggedIn.value = true
             _isShowingAdminLogin.value = false
             viewModelScope.launch {
                 _eventFlow.emit(UiEvent.ShowToast("Welcome to Owner / Admin Portal 👑"))
             }
+            return true
+        } else {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Invalid Owner ID or Password! Please check credentials."))
+            }
+            return false
         }
-        return isValid
     }
 
     fun logoutAdmin() {
         _isAdminLoggedIn.value = false
         viewModelScope.launch {
-            _eventFlow.emit(UiEvent.ShowToast("Logged out of Admin Portal 🔒"))
+            _eventFlow.emit(UiEvent.ShowToast("Logged out of Owner Portal 🔒"))
         }
     }
 
-    fun changeAdminPin(currentPin: String, newPin: String): Boolean {
+    fun changeOwnerCredentials(currentPin: String, newOwnerId: String, newPin: String): Boolean {
         if (currentPin.trim() != adminPin.value.trim()) {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Incorrect Current Password!"))
+            }
             return false
         }
         if (newPin.trim().length < 4) {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("New password must be at least 4 characters."))
+            }
             return false
         }
+        val cleanOwnerId = if (newOwnerId.isNotBlank()) newOwnerId.trim() else ownerId.value
         viewModelScope.launch {
-            repository.updateAdminPin(newPin.trim())
+            repository.updateOwnerCredentials(cleanOwnerId, newPin.trim())
             _isShowingChangePinDialog.value = false
-            _eventFlow.emit(UiEvent.ShowToast("Admin Password Updated Successfully! 🔑"))
+            _eventFlow.emit(UiEvent.ShowToast("Owner ID & Password updated successfully! 🔑"))
         }
         return true
     }

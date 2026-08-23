@@ -63,7 +63,8 @@ import java.util.Locale
 
 @Composable
 fun ShopInfoReviewsScreen(
-    reviews: List<CustomerFeedback>
+    reviews: List<CustomerFeedback>,
+    onOpenAdminPortal: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val averageRating = if (reviews.isNotEmpty()) reviews.map { it.overallRating }.average() else 4.9
@@ -74,6 +75,77 @@ fun ShopInfoReviewsScreen(
             .background(PolishBgLight),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
+        // 0. Owner Portal Access Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenAdminPortal() }
+                    .testTag("shop_owner_portal_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = PolishMaroonDark),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Store,
+                                contentDescription = "Owner Portal",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Shop Owner / Admin Mode 👑",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 15.sp
+                                )
+                            )
+                            Text(
+                                text = "ریٹس اور ڈیلز تبدیل کرنے کے لیے کلک کریں",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .background(PolishPrimaryRed, RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Login 🔒",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
         // 1. Shop Info Card
         item {
             Card(

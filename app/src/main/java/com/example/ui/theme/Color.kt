@@ -11,6 +11,11 @@ val PolishBorder = Color(0xFFE4E4E7)         // Sharp, clean card border
 val PolishBorderStrong = Color(0xFFCBD5E1)   // High-contrast defined border
 val PolishInputBorder = Color(0xFF94A3B8)    // Clearly visible input field outline
 
+val PolishAccentGold = Color(0xFFF59E0B)
+val PolishGreenSuccess = Color(0xFF16A34A)
+val PolishCardBg = Color(0xFFFFFFFF)
+val PolishOrangeAlert = Color(0xFFEA580C)
+
 val PizzaRed = Color(0xFFDC2626)
 val PizzaRedDark = Color(0xFF18181B)
 val PizzaRedLight = Color(0xFFFEE2E2)
@@ -42,4 +47,3 @@ val BorderDark = Color(0xFF3F3F46)
 
 val EasypaisaGreen = Color(0xFF00A859)
 val WhatsAppGreen = Color(0xFF25D366)
-

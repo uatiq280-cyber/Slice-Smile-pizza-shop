@@ -15,9 +15,10 @@ import kotlinx.coroutines.launch
         LoyaltyEntity::class,
         FeedbackEntity::class,
         AdminConfigEntity::class,
-        CustomMenuItemEntity::class
+        CustomMenuItemEntity::class,
+        UserSessionEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun feedbackDao(): FeedbackDao
     abstract fun adminDao(): AdminDao
     abstract fun customMenuItemDao(): CustomMenuItemDao
+    abstract fun userSessionDao(): UserSessionDao
 
     companion object {
         @Volatile

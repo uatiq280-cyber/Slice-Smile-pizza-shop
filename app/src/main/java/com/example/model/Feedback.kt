@@ -20,4 +20,5 @@ data class LoyaltyProfile(
 ) {
     // 100 coins = Rs 10 discount
     val discountEquivalentRs: Int get() = (currentCoins / 100) * 10
+    val discountValueInRupees: Int get() = discountEquivalentRs
 }
