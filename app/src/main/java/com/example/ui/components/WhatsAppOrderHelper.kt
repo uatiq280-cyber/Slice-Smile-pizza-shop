@@ -57,20 +57,28 @@ object WhatsAppOrderHelper {
         sendRawWhatsAppMessage(context, customNumber, message)
     }
 
+    fun openDirectShopWhatsApp(context: Context, customMessage: String = "Salam! I want to order food from Slice Smile Pizza Shop 🍕") {
+        sendRawWhatsAppMessage(context, MenuDataSource.PRIMARY_WHATSAPP, customMessage)
+    }
+
     fun sendRawWhatsAppMessage(context: Context, phoneNumber: String, message: String) {
         try {
-            // Clean phone number (e.g. 03037448255 -> 923037448255)
-            var cleanPhone = phoneNumber.replace("-", "").replace(" ", "").trim()
+            // Clean phone number (e.g. 0303-7448255 / 03037448255 -> 923037448255)
+            var cleanPhone = phoneNumber.replace("+", "").replace("-", "").replace(" ", "").trim()
             if (cleanPhone.startsWith("0")) {
                 cleanPhone = "92" + cleanPhone.substring(1)
             }
+            if (!cleanPhone.startsWith("92")) {
+                cleanPhone = "92$cleanPhone"
+            }
             val encodedMessage = URLEncoder.encode(message, "UTF-8")
-            val uri = Uri.parse("https://api.whatsapp.com/send?phone=$cleanPhone&text=$encodedMessage")
-            val intent = Intent(Intent.ACTION_VIEW, uri)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val uri = Uri.parse("https://wa.me/$cleanPhone?text=$encodedMessage")
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "Could not open WhatsApp. Please ensure it is installed.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Could not open WhatsApp: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

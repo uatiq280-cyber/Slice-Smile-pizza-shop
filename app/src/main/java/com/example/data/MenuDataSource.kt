@@ -14,8 +14,9 @@ object MenuDataSource {
 
     val PHONE_NUMBERS = listOf("0303-7448255", "0303-5574979", "0311-4171141")
     const val SHOP_PHONE = "0303-7448255"
-    const val PRIMARY_WHATSAPP = "03037448255"
-    const val SHOP_WHATSAPP = "03037448255"
+    const val PRIMARY_WHATSAPP = "923037448255"
+    const val SHOP_WHATSAPP = "923037448255"
+    const val WHATSAPP_URL = "https://wa.me/923037448255"
     const val EASYPAISA_ACCOUNT_NUMBER = "03254946190"
     const val EASYPAISA_ACCOUNT_TITLE = "Slice Smile Pizza Shop"
 

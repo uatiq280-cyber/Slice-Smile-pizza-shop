@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import android.content.Context
 import android.util.Log
 import com.example.data.local.AdminConfigEntity
 import com.example.data.local.AppDatabase
@@ -14,18 +15,27 @@ import com.example.model.LoyaltyProfile
 import com.example.model.MenuItem
 import com.example.model.Order
 import com.example.model.OrderStatus
+import com.example.model.PaymentMethod
 import com.example.model.Rider
-import com.example.model.UserRole
 import com.example.model.UserSession
+import com.example.service.NotificationHelper
+import com.google.firebase.FirebaseApp
+import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.Collections
 
-class PizzaRepository(private val database: AppDatabase) {
+class PizzaRepository(
+    private val context: Context,
+    private val database: AppDatabase
+) {
     private val orderDao = database.orderDao()
     private val loyaltyDao = database.loyaltyDao()
     private val feedbackDao = database.feedbackDao()
@@ -36,99 +46,275 @@ class PizzaRepository(private val database: AppDatabase) {
 
     private var firestore: FirebaseFirestore? = null
     private var firestoreOrdersListener: ListenerRegistration? = null
+    private var firestoreRidersListener: ListenerRegistration? = null
+    private var firestoreFeedbackListener: ListenerRegistration? = null
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
 
+    // Keep track of order IDs that have already triggered a sound/notification on this device
+    private val appLaunchTime = System.currentTimeMillis()
+    private val notifiedOrderIds = Collections.synchronizedSet(HashSet<Long>())
+
     init {
+        initFirebaseAndListeners()
+    }
+
+    private fun initFirebaseAndListeners() {
         try {
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseApp.initializeApp(context)
+            }
             firestore = FirebaseFirestore.getInstance()
             listenToFirestoreOrders()
+            listenToFirestoreRiders()
+            listenToFirestoreFeedback()
+            Log.d("PizzaRepository", "Firestore listeners initialized successfully.")
         } catch (e: Exception) {
-            Log.w("PizzaRepository", "Firestore not available, operating in local-first database mode: ${e.message}")
+            Log.w("PizzaRepository", "Firestore not available or in local-first fallback mode: ${e.message}")
         }
     }
 
+    // ================= REAL-TIME FIRESTORE ORDER SYNC =================
     private fun listenToFirestoreOrders() {
         try {
-            firestoreOrdersListener = firestore?.collection("orders")
-                ?.addSnapshotListener { snapshots, error ->
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            firestoreOrdersListener?.remove()
+            firestoreOrdersListener = db.collection("orders")
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .addSnapshotListener { snapshots, error ->
                     if (error != null) {
                         Log.e("PizzaRepository", "Firestore orders listen error", error)
                         return@addSnapshotListener
                     }
-                    snapshots?.let { docs ->
-                        repositoryScope.launch {
-                            val orderEntities = docs.documents.mapNotNull { doc ->
-                                try {
-                                    val orderId = doc.getLong("orderId") ?: return@mapNotNull null
-                                    val userId = doc.getString("userId") ?: "guest_user"
-                                    val itemsSummary = doc.getString("itemsSummary") ?: ""
-                                    val itemsCount = doc.getLong("itemsCount")?.toInt() ?: 1
-                                    val subtotal = doc.getLong("subtotal")?.toInt() ?: 0
-                                    val discount = doc.getLong("discount")?.toInt() ?: 0
-                                    val deliveryFee = doc.getLong("deliveryFee")?.toInt() ?: 0
-                                    val totalAmount = doc.getLong("totalAmount")?.toInt() ?: 0
-                                    val paymentMethodName = doc.getString("paymentMethodName") ?: "CASH_ON_DELIVERY"
-                                    val easypaisaTrxId = doc.getString("easypaisaTrxId")
-                                    val customerName = doc.getString("customerName") ?: ""
-                                    val customerPhone = doc.getString("customerPhone") ?: ""
-                                    val deliveryAddress = doc.getString("deliveryAddress") ?: ""
-                                    val areaLandmark = doc.getString("areaLandmark") ?: ""
-                                    val orderNote = doc.getString("orderNote") ?: ""
-                                    val coinsEarned = doc.getLong("coinsEarned")?.toInt() ?: 0
-                                    val coinsRedeemed = doc.getLong("coinsRedeemed")?.toInt() ?: 0
-                                    val statusName = doc.getString("statusName") ?: OrderStatus.ORDER_RECEIVED.name
-                                    val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
-                                    val riderId = doc.getString("riderId")
-                                    val riderName = doc.getString("riderName") ?: "Tariq Mahmood"
-                                    val riderPhone = doc.getString("riderPhone") ?: "0303-7448255"
-                                    val riderVehicle = doc.getString("riderVehicle") ?: "Honda 125 • Thermal Insulated Box"
-                                    val rating = doc.getLong("rating")?.toInt() ?: 0
-                                    val reviewComment = doc.getString("reviewComment") ?: ""
-                                    val feedbackSubmitted = doc.getBoolean("feedbackSubmitted") ?: false
+                    if (snapshots == null) return@addSnapshotListener
 
-                                    OrderEntity(
-                                        orderId = orderId,
-                                        userId = userId,
-                                        itemsSummary = itemsSummary,
-                                        itemsCount = itemsCount,
-                                        subtotal = subtotal,
-                                        discount = discount,
-                                        deliveryFee = deliveryFee,
-                                        totalAmount = totalAmount,
-                                        paymentMethodName = paymentMethodName,
-                                        easypaisaTrxId = easypaisaTrxId,
-                                        customerName = customerName,
-                                        customerPhone = customerPhone,
-                                        deliveryAddress = deliveryAddress,
-                                        areaLandmark = areaLandmark,
-                                        orderNote = orderNote,
-                                        coinsEarned = coinsEarned,
-                                        coinsRedeemed = coinsRedeemed,
-                                        statusName = statusName,
-                                        timestamp = timestamp,
-                                        riderId = riderId,
-                                        riderName = riderName,
-                                        riderPhone = riderPhone,
-                                        riderVehicle = riderVehicle,
-                                        rating = rating,
-                                        reviewComment = reviewComment,
-                                        feedbackSubmitted = feedbackSubmitted
-                                    )
-                                } catch (e: Exception) {
-                                    null
+                    repositoryScope.launch {
+                        val orderEntities = mutableListOf<OrderEntity>()
+
+                        for (change in snapshots.documentChanges) {
+                            val doc = change.document
+                            val order = parseOrderFromDoc(doc) ?: continue
+                            orderEntities.add(OrderEntity.fromDomain(order))
+
+                            when (change.type) {
+                                DocumentChange.Type.ADDED -> {
+                                    // Live new order received from customer
+                                    if (order.status == OrderStatus.ORDER_RECEIVED &&
+                                        !notifiedOrderIds.contains(order.orderId) &&
+                                        order.timestamp > (appLaunchTime - 300000) // Within last 5 mins
+                                    ) {
+                                        notifiedOrderIds.add(order.orderId)
+                                        try {
+                                            Log.d("PizzaRepository", "NEW ORDER ARRIVED -> Triggering Owner Notification & Sound for #${order.orderId}")
+                                            NotificationHelper.notifyOwnerNewOrder(context, order)
+                                        } catch (e: Exception) {
+                                            Log.e("PizzaRepository", "Failed to trigger owner notification", e)
+                                        }
+                                    } else {
+                                        notifiedOrderIds.add(order.orderId)
+                                    }
+                                }
+                                DocumentChange.Type.MODIFIED -> {
+                                    // Status update received (e.g. RECEIVED -> PREPARING -> READY -> OUT_FOR_DELIVERY -> DELIVERED)
+                                    try {
+                                        val currentSession = userSessionDao.getUserSession()
+                                        val isCustomerOrder = currentSession != null && (
+                                            currentSession.userId == order.userId ||
+                                            (currentSession.phone.isNotBlank() && currentSession.phone.trim() == order.customerPhone.trim())
+                                        )
+                                        if (isCustomerOrder) {
+                                            val statusTitle = when (order.status) {
+                                                OrderStatus.ORDER_RECEIVED -> "Order Confirmed 📥"
+                                                OrderStatus.PREPARING_PIZZA -> "Baking in Oven 🧑‍🍳"
+                                                OrderStatus.READY_FOR_PICKUP -> "Packed & Ready 🍕"
+                                                OrderStatus.OUT_FOR_DELIVERY -> "Out for Delivery 🛵"
+                                                OrderStatus.DELIVERED -> "Delivered! Enjoy your meal 🎉"
+                                                OrderStatus.CANCELLED -> "Order Cancelled ❌"
+                                            }
+                                            val message = "Order #${order.orderId} is now: $statusTitle"
+                                            NotificationHelper.notifyOrderStatusUpdate(context, order.orderId, statusTitle, message)
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("PizzaRepository", "Error on order modified notification", e)
+                                    }
+                                }
+                                DocumentChange.Type.REMOVED -> {
+                                    orderDao.deleteOrder(order.orderId)
                                 }
                             }
-                            if (orderEntities.isNotEmpty()) {
-                                orderDao.insertOrders(orderEntities)
-                            }
+                        }
+
+                        if (orderEntities.isNotEmpty()) {
+                            orderDao.insertOrders(orderEntities)
                         }
                     }
                 }
         } catch (e: Exception) {
-            Log.e("PizzaRepository", "Error setting up Firestore listener", e)
+            Log.e("PizzaRepository", "Error starting Firestore orders listener", e)
         }
     }
 
+    private fun parseOrderFromDoc(doc: DocumentSnapshot): Order? {
+        return try {
+            val orderId = doc.getLong("orderId") ?: doc.id.toLongOrNull() ?: return null
+            val userId = doc.getString("userId") ?: "guest_user"
+            val itemsSummary = doc.getString("itemsSummary") ?: ""
+            val itemsCount = doc.getLong("itemsCount")?.toInt() ?: 1
+            val subtotal = doc.getLong("subtotal")?.toInt() ?: 0
+            val discount = doc.getLong("discount")?.toInt() ?: 0
+            val deliveryFee = doc.getLong("deliveryFee")?.toInt() ?: 0
+            val totalAmount = doc.getLong("totalAmount")?.toInt() ?: 0
+            val paymentMethodName = doc.getString("paymentMethodName") ?: "CASH_ON_DELIVERY"
+            val paymentMethod = try {
+                PaymentMethod.valueOf(paymentMethodName)
+            } catch (e: Exception) {
+                PaymentMethod.CASH_ON_DELIVERY
+            }
+            val easypaisaTrxId = doc.getString("easypaisaTrxId")
+            val customerName = doc.getString("customerName") ?: "Customer"
+            val customerPhone = doc.getString("customerPhone") ?: ""
+            val deliveryAddress = doc.getString("deliveryAddress") ?: ""
+            val areaLandmark = doc.getString("areaLandmark") ?: ""
+            val orderNote = doc.getString("orderNote") ?: ""
+            val coinsEarned = doc.getLong("coinsEarned")?.toInt() ?: 0
+            val coinsRedeemed = doc.getLong("coinsRedeemed")?.toInt() ?: 0
+            val statusName = doc.getString("statusName") ?: OrderStatus.ORDER_RECEIVED.name
+            val status = try {
+                OrderStatus.valueOf(statusName)
+            } catch (e: Exception) {
+                OrderStatus.ORDER_RECEIVED
+            }
+            val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+            val riderId = doc.getString("riderId")
+            val riderName = doc.getString("riderName") ?: "Slice Smile Express Delivery"
+            val riderPhone = doc.getString("riderPhone") ?: "0303-7448255"
+            val riderVehicle = doc.getString("riderVehicle") ?: "Motorcycle"
+            val rating = doc.getLong("rating")?.toInt() ?: 0
+            val reviewComment = doc.getString("reviewComment") ?: ""
+            val feedbackSubmitted = doc.getBoolean("feedbackSubmitted") ?: false
+
+            Order(
+                orderId = orderId,
+                userId = userId,
+                itemsSummary = itemsSummary,
+                itemsCount = itemsCount,
+                subtotal = subtotal,
+                discount = discount,
+                deliveryFee = deliveryFee,
+                totalAmount = totalAmount,
+                paymentMethod = paymentMethod,
+                easypaisaTrxId = easypaisaTrxId,
+                customerName = customerName,
+                customerPhone = customerPhone,
+                deliveryAddress = deliveryAddress,
+                areaLandmark = areaLandmark,
+                orderNote = orderNote,
+                coinsEarned = coinsEarned,
+                coinsRedeemed = coinsRedeemed,
+                status = status,
+                timestamp = timestamp,
+                riderId = riderId,
+                riderName = riderName,
+                riderPhone = riderPhone,
+                riderVehicle = riderVehicle,
+                rating = rating,
+                reviewComment = reviewComment,
+                feedbackSubmitted = feedbackSubmitted
+            )
+        } catch (e: Exception) {
+            Log.e("PizzaRepository", "Error parsing Firestore order doc ${doc.id}", e)
+            null
+        }
+    }
+
+    // ================= REAL-TIME FIRESTORE RIDERS SYNC =================
+    private fun listenToFirestoreRiders() {
+        try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            firestoreRidersListener?.remove()
+            firestoreRidersListener = db.collection("riders").addSnapshotListener { snapshots, error ->
+                if (error != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val riderEntities = snapshots.documents.mapNotNull { doc ->
+                        try {
+                            val id = doc.getString("id") ?: doc.id
+                            val name = doc.getString("name") ?: ""
+                            val phone = doc.getString("phone") ?: ""
+                            val pin = doc.getString("pin") ?: "1234"
+                            val vehicle = doc.getString("vehicle") ?: "Motorcycle"
+                            val isEnabled = doc.getBoolean("isEnabled") ?: true
+                            val rating = doc.getDouble("rating") ?: 5.0
+                            val totalDeliveries = doc.getLong("totalDeliveries")?.toInt() ?: 0
+                            RiderEntity(
+                                id = id,
+                                name = name,
+                                phone = phone,
+                                pin = pin,
+                                vehicle = vehicle,
+                                isEnabled = isEnabled,
+                                rating = rating,
+                                totalDeliveries = totalDeliveries
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (riderEntities.isNotEmpty()) {
+                        for (r in riderEntities) {
+                            riderDao.insertOrUpdate(r)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Firestore riders listener error: ${e.message}")
+        }
+    }
+
+    // ================= REAL-TIME FIRESTORE FEEDBACK SYNC =================
+    private fun listenToFirestoreFeedback() {
+        try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            firestoreFeedbackListener?.remove()
+            firestoreFeedbackListener = db.collection("customer_feedback").addSnapshotListener { snapshots, error ->
+                if (error != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val feedbacks = snapshots.documents.mapNotNull { doc ->
+                        try {
+                            val id = doc.getLong("id") ?: doc.id.toLongOrNull() ?: 0L
+                            val orderId = doc.getLong("orderId") ?: 0L
+                            val customerName = doc.getString("customerName") ?: "Customer"
+                            val overallRating = doc.getLong("overallRating")?.toInt() ?: 5
+                            val foodTasteRating = doc.getLong("foodTasteRating")?.toInt() ?: 5
+                            val deliverySpeedRating = doc.getLong("deliverySpeedRating")?.toInt() ?: 5
+                            val comment = doc.getString("comment") ?: ""
+                            val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                            FeedbackEntity(
+                                id = id,
+                                orderId = orderId,
+                                customerName = customerName,
+                                overallRating = overallRating,
+                                foodTasteRating = foodTasteRating,
+                                deliverySpeedRating = deliverySpeedRating,
+                                comment = comment,
+                                timestamp = timestamp
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (feedbacks.isNotEmpty()) {
+                        for (f in feedbacks) {
+                            feedbackDao.insertFeedback(f)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Firestore feedback listener error: ${e.message}")
+        }
+    }
+
+    // ================= ORDER QUERIES =================
     val allOrders: Flow<List<Order>> = orderDao.getAllOrders().map { list ->
         list.map { it.toDomain() }
     }
@@ -200,7 +386,18 @@ class PizzaRepository(private val database: AppDatabase) {
     suspend fun saveRider(rider: Rider) {
         riderDao.insertOrUpdate(RiderEntity.fromDomain(rider))
         try {
-            firestore?.collection("riders")?.document(rider.id)?.set(rider)
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val map = hashMapOf(
+                "id" to rider.id,
+                "name" to rider.name,
+                "phone" to rider.phone,
+                "pin" to rider.pin,
+                "vehicle" to rider.vehicle,
+                "isEnabled" to rider.isEnabled,
+                "rating" to rider.rating.toDouble(),
+                "totalDeliveries" to rider.totalDeliveries
+            )
+            db.collection("riders").document(rider.id).set(map)
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore saveRider error", e)
         }
@@ -209,7 +406,8 @@ class PizzaRepository(private val database: AppDatabase) {
     suspend fun deleteRider(riderId: String) {
         riderDao.deleteRider(riderId)
         try {
-            firestore?.collection("riders")?.document(riderId)?.delete()
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            db.collection("riders").document(riderId).delete()
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore deleteRider error", e)
         }
@@ -218,7 +416,8 @@ class PizzaRepository(private val database: AppDatabase) {
     suspend fun setRiderEnabled(riderId: String, isEnabled: Boolean) {
         riderDao.setRiderEnabled(riderId, isEnabled)
         try {
-            firestore?.collection("riders")?.document(riderId)?.update("isEnabled", isEnabled)
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            db.collection("riders").document(riderId).update("isEnabled", isEnabled)
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore setRiderEnabled error", e)
         }
@@ -227,7 +426,8 @@ class PizzaRepository(private val database: AppDatabase) {
     suspend fun assignRiderToOrder(orderId: Long, rider: Rider) {
         orderDao.assignRider(orderId, rider.id, rider.name, rider.phone, rider.vehicle)
         try {
-            firestore?.collection("orders")?.document(orderId.toString())?.update(
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            db.collection("orders").document(orderId.toString()).update(
                 mapOf(
                     "riderId" to rider.id,
                     "riderName" to rider.name,
@@ -248,8 +448,24 @@ class PizzaRepository(private val database: AppDatabase) {
         return riderDao.getRiderById(id)?.toDomain()
     }
 
+    // ================= CUSTOM MENU ITEMS =================
     suspend fun saveCustomMenuItem(item: MenuItem, isDeleted: Boolean = false) {
         customMenuItemDao.insertOrUpdate(CustomMenuItemEntity.fromDomain(item, isDeleted))
+        try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val map = hashMapOf(
+                "id" to item.id,
+                "name" to item.name,
+                "categoryName" to item.category.name,
+                "description" to item.description,
+                "basePrice" to item.basePrice,
+                "isAvailable" to item.isAvailable,
+                "isDeleted" to isDeleted
+            )
+            db.collection("menu_items").document(item.id).set(map)
+        } catch (e: Exception) {
+            Log.e("PizzaRepository", "Firestore saveCustomMenuItem error", e)
+        }
     }
 
     suspend fun deleteCustomMenuItem(itemId: String) {
@@ -263,19 +479,30 @@ class PizzaRepository(private val database: AppDatabase) {
                 isDeleted = true
             )
         )
+        try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            db.collection("menu_items").document(itemId).update("isDeleted", true)
+        } catch (e: Exception) {
+            Log.e("PizzaRepository", "Firestore deleteCustomMenuItem error", e)
+        }
     }
 
     suspend fun resetAllMenuToDefaults() {
         customMenuItemDao.deleteAll()
     }
 
+    // ================= ORDER PLACEMENT =================
     suspend fun placeOrder(order: Order): Long {
         val entity = OrderEntity.fromDomain(order)
         val generatedId = orderDao.insertOrder(entity)
         val finalOrder = order.copy(orderId = generatedId)
 
-        // Sync to Firestore
+        // Mark as already notified on local device placing it
+        notifiedOrderIds.add(generatedId)
+
+        // Sync directly to Firestore for Owner/Admin and Rider devices
         try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
             val orderMap = hashMapOf(
                 "orderId" to generatedId,
                 "userId" to finalOrder.userId,
@@ -304,7 +531,13 @@ class PizzaRepository(private val database: AppDatabase) {
                 "reviewComment" to finalOrder.reviewComment,
                 "feedbackSubmitted" to finalOrder.feedbackSubmitted
             )
-            firestore?.collection("orders")?.document(generatedId.toString())?.set(orderMap)
+            db.collection("orders").document(generatedId.toString()).set(orderMap)
+                .addOnSuccessListener {
+                    Log.d("PizzaRepository", "Order #$generatedId successfully published to Firestore!")
+                }
+                .addOnFailureListener { e ->
+                    Log.e("PizzaRepository", "Failed to publish Order #$generatedId to Firestore", e)
+                }
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore placeOrder sync error", e)
         }
@@ -330,10 +563,21 @@ class PizzaRepository(private val database: AppDatabase) {
         return generatedId
     }
 
+    // ================= STATUS ADVANCEMENT =================
     suspend fun updateOrderStatus(orderId: Long, status: OrderStatus) {
         orderDao.updateOrderStatus(orderId, status.name)
         try {
-            firestore?.collection("orders")?.document(orderId.toString())?.update("statusName", status.name)
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            db.collection("orders").document(orderId.toString()).update(
+                mapOf(
+                    "statusName" to status.name,
+                    "lastUpdated" to System.currentTimeMillis()
+                )
+            ).addOnSuccessListener {
+                Log.d("PizzaRepository", "Order #$orderId status updated to ${status.name} in Firestore")
+            }.addOnFailureListener { e ->
+                Log.e("PizzaRepository", "Firestore status update failed for #$orderId", e)
+            }
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore updateOrderStatus error", e)
         }
@@ -343,7 +587,19 @@ class PizzaRepository(private val database: AppDatabase) {
         feedbackDao.insertFeedback(FeedbackEntity.fromDomain(feedback))
         orderDao.submitOrderFeedback(feedback.orderId, feedback.overallRating, feedback.comment)
         try {
-            firestore?.collection("orders")?.document(feedback.orderId.toString())?.update(
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val feedbackMap = hashMapOf(
+                "id" to feedback.id,
+                "orderId" to feedback.orderId,
+                "customerName" to feedback.customerName,
+                "overallRating" to feedback.overallRating,
+                "foodTasteRating" to feedback.foodTasteRating,
+                "deliverySpeedRating" to feedback.deliverySpeedRating,
+                "comment" to feedback.comment,
+                "timestamp" to feedback.timestamp
+            )
+            db.collection("customer_feedback").document(feedback.id.toString()).set(feedbackMap)
+            db.collection("orders").document(feedback.orderId.toString()).update(
                 mapOf(
                     "rating" to feedback.overallRating,
                     "reviewComment" to feedback.comment,

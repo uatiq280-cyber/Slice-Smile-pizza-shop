@@ -44,7 +44,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         val db = AppDatabase.getDatabase(application)
-        repository = PizzaRepository(db)
+        repository = PizzaRepository(application, db)
     }
 
     val ordersList: StateFlow<List<Order>> = repository.allOrders
@@ -476,26 +476,8 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             _easypaisaTrxId.value = ""
             _isShowingEasypaisaModal.value = false
 
-            // Trigger Push Notification & Sound for Shop Owner
-            try {
-                NotificationHelper.notifyOwnerNewOrder(getApplication(), finalOrder)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-
             _eventFlow.emit(UiEvent.OrderPlacedSuccess(finalOrder))
             onSuccess(finalOrder)
-        }
-    }
-
-    private fun simulateOrderStatusProgression(orderId: Long) {
-        viewModelScope.launch {
-            delay(15000) // 15 seconds -> Preparing Pizza
-            repository.updateOrderStatus(orderId, OrderStatus.PREPARING_PIZZA)
-            delay(25000) // 25 seconds -> Out for delivery
-            repository.updateOrderStatus(orderId, OrderStatus.OUT_FOR_DELIVERY)
-            delay(30000) // 30 seconds -> Delivered
-            repository.updateOrderStatus(orderId, OrderStatus.DELIVERED)
         }
     }
 
@@ -525,6 +507,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     fun updateManualOrderStatus(orderId: Long, status: OrderStatus) {
         viewModelScope.launch {
             repository.updateOrderStatus(orderId, status)
+            _eventFlow.emit(UiEvent.ShowToast("Order #$orderId updated to ${status.title} ${status.iconEmoji}"))
         }
     }
 

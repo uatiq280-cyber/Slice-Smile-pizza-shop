@@ -22,6 +22,8 @@ enum class OrderStatus(
     DELIVERED("Delivered", 4, "Order delivered hot & fresh to your doorstep. Enjoy!", "🎉"),
     CANCELLED("Cancelled", -1, "This order was cancelled", "❌");
 
+    val title: String get() = label
+
     companion object {
         val PLACED = ORDER_RECEIVED
         val PREPARING = PREPARING_PIZZA

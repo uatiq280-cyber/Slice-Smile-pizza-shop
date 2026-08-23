@@ -162,4 +162,7 @@ interface OrderDao {
 
     @Query("UPDATE orders SET rating = :rating, reviewComment = :comment, feedbackSubmitted = 1 WHERE orderId = :id")
     suspend fun submitOrderFeedback(id: Long, rating: Int, comment: String)
+
+    @Query("DELETE FROM orders WHERE orderId = :id")
+    suspend fun deleteOrder(id: Long)
 }
