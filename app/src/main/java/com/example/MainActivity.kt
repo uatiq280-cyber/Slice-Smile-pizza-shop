@@ -316,12 +316,22 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                 }
             }
 composable(Screen.Admin.route) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Admin Panel"
+    AdminPanelScreen(
+        menuItems = menuItems,
+        onAddNewItem = {
+            // Add product
+        },
+        onEditItem = { item ->
+            // Edit product
+        },
+        onDeleteItem = { itemId ->
+            // Delete product
+        },
+        onToggleStock = { item, inStock ->
+            // Update stock
+        }
+    )
+}
         )
     }
 }
