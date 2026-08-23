@@ -454,24 +454,6 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                     }
                 )
             }
-composable(Screen.Admin.route) {
-    AdminPanelScreen(
-        menuItems = menuItems,
-        onEditItem = { item ->
-    viewModel.openAdminEditItem(item)
-},
-onDeleteItem = { itemId ->
-    viewModel.deleteMenuItem(itemId)
-},
-onToggleStock = { item, inStock ->
-    viewModel.toggleItemStock(item, inStock)
-}
-        }
-    )
-}
-        )
-    }
-}
             // Customization Dialog
             customizingItem?.let { item ->
                 ItemCustomizationDialog(
