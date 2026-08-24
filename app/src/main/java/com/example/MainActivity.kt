@@ -202,25 +202,27 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
 
     Scaffold(
         topBar = {
-            PizzaTopBar(
-                cartCount = cartCount,
-                coinsCount = loyaltyProfile.currentCoins,
-                onCartClick = {
-                    navController.navigate(Screen.Cart.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                    }
-                },
-                onLocationClick = { viewModel.showLocationSelector(true) },
-                onAdminClick = {
-                    if (isAdminLoggedIn) {
-                        navController.navigate(Screen.Admin.route)
-                    } else {
-                        viewModel.showAdminLoginDialog(true)
-                    }
-                },
-                currentAddress = deliveryAddress
-            )
+            if (currentRoute != Screen.Admin.route && currentRoute != Screen.RiderPortal.route) {
+                PizzaTopBar(
+                    cartCount = cartCount,
+                    coinsCount = loyaltyProfile.currentCoins,
+                    onCartClick = {
+                        navController.navigate(Screen.Cart.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onLocationClick = { viewModel.showLocationSelector(true) },
+                    onAdminClick = {
+                        if (isAdminLoggedIn) {
+                            navController.navigate(Screen.Admin.route)
+                        } else {
+                            viewModel.showAdminLoginDialog(true)
+                        }
+                    },
+                    currentAddress = deliveryAddress
+                )
+            }
         },
         bottomBar = {
             if (currentRoute != Screen.RiderPortal.route && currentRoute != Screen.Admin.route) {

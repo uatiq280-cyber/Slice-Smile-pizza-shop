@@ -53,6 +53,12 @@ class PizzaRepository(
     // Keep track of order IDs that have already triggered a sound/notification on this device
     private val appLaunchTime = System.currentTimeMillis()
     private val notifiedOrderIds = Collections.synchronizedSet(HashSet<Long>())
+    @Volatile
+    private var isAdminActive: Boolean = false
+
+    fun setAdminActive(active: Boolean) {
+        isAdminActive = active
+    }
 
     init {
         initFirebaseAndListeners()
@@ -103,11 +109,13 @@ class PizzaRepository(
                                         order.timestamp > (appLaunchTime - 300000) // Within last 5 mins
                                     ) {
                                         notifiedOrderIds.add(order.orderId)
-                                        try {
-                                            Log.d("PizzaRepository", "NEW ORDER ARRIVED -> Triggering Owner Notification & Sound for #${order.orderId}")
-                                            NotificationHelper.notifyOwnerNewOrder(context, order)
-                                        } catch (e: Exception) {
-                                            Log.e("PizzaRepository", "Failed to trigger owner notification", e)
+                                        if (isAdminActive) {
+                                            try {
+                                                Log.d("PizzaRepository", "NEW ORDER ARRIVED FOR OWNER -> Triggering Owner Notification & Sound for #${order.orderId}")
+                                                NotificationHelper.notifyOwnerNewOrder(context, order)
+                                            } catch (e: Exception) {
+                                                Log.e("PizzaRepository", "Failed to trigger owner notification", e)
+                                            }
                                         }
                                     } else {
                                         notifiedOrderIds.add(order.orderId)
@@ -498,9 +506,11 @@ class PizzaRepository(
 
     // ================= ORDER PLACEMENT =================
     suspend fun placeOrder(order: Order): Long {
-        val entity = OrderEntity.fromDomain(order)
-        val generatedId = orderDao.insertOrder(entity)
-        val finalOrder = order.copy(orderId = generatedId)
+        val uniqueOrderId = if (order.orderId > 1000) order.orderId else ((100000..999999).random().toLong())
+        val finalOrder = order.copy(orderId = uniqueOrderId)
+        val entity = OrderEntity.fromDomain(finalOrder)
+        orderDao.insertOrder(entity)
+        val generatedId = uniqueOrderId
 
         // Mark as already notified on local device placing it
         notifiedOrderIds.add(generatedId)

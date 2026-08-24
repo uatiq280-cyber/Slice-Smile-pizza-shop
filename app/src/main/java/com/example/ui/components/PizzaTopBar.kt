@@ -131,28 +131,8 @@ fun PizzaTopBar(
                     }
                 }
 
-                // Action buttons: Admin/Owner, WhatsApp, Call, Cart
+                // Action buttons: WhatsApp, Call, Cart
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Admin / Owner Portal button
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(PolishMaroonDark)
-                            .clickable { onAdminClick() }
-                            .testTag("top_bar_admin_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AdminPanelSettings,
-                            contentDescription = "Owner / Admin Portal",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
                     // WhatsApp quick contact
                     Box(
                         modifier = Modifier

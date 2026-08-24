@@ -657,6 +657,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
 
         if (idMatch && pinMatch) {
             _isAdminLoggedIn.value = true
+            repository.setAdminActive(true)
             _isShowingAdminLogin.value = false
             _isShowingRoleSelector.value = false
             viewModelScope.launch {
@@ -673,6 +674,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun logoutAdmin() {
         _isAdminLoggedIn.value = false
+        repository.setAdminActive(false)
         viewModelScope.launch {
             _eventFlow.emit(UiEvent.ShowToast("Logged out of Owner Portal 🔒"))
         }

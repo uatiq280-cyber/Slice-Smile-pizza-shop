@@ -874,19 +874,38 @@ private fun AdminOrderCard(
             // Primary Quick Workflow Action Button
             when (order.status) {
                 OrderStatus.ORDER_RECEIVED -> {
-                    Button(
-                        onClick = { onUpdateStatus(OrderStatus.PREPARING_PIZZA) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2E7D32),
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("admin_accept_order_btn_${order.orderId}")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("✅ Accept Order & Start Baking 🧑‍🍳", fontWeight = FontWeight.Black, fontSize = 13.5.sp)
+                        Button(
+                            onClick = { onUpdateStatus(OrderStatus.PREPARING_PIZZA) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2E7D32),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.5f)
+                                .height(44.dp)
+                                .testTag("admin_accept_order_btn_${order.orderId}")
+                        ) {
+                            Text("✅ Accept & Bake 🧑‍🍳", fontWeight = FontWeight.Black, fontSize = 13.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { onUpdateStatus(OrderStatus.CANCELLED) },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = PolishPrimaryRed
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PolishPrimaryRed.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("admin_reject_order_btn_${order.orderId}")
+                        ) {
+                            Text("❌ Reject", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
                     }
                 }
                 OrderStatus.PREPARING_PIZZA -> {
