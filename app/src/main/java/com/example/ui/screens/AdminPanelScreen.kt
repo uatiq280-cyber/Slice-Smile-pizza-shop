@@ -782,9 +782,126 @@ private fun AdminOrderCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Primary Quick Workflow Action Button
+            when (order.status) {
+                OrderStatus.ORDER_RECEIVED -> {
+                    Button(
+                        onClick = { onUpdateStatus(OrderStatus.PREPARING_PIZZA) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2E7D32),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("admin_accept_order_btn_${order.orderId}")
+                    ) {
+                        Text("✅ Accept Order & Start Baking 🧑‍🍳", fontWeight = FontWeight.Black, fontSize = 13.5.sp)
+                    }
+                }
+                OrderStatus.PREPARING_PIZZA -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { onUpdateStatus(OrderStatus.READY_FOR_PICKUP) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFE65100),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                        ) {
+                            Text("Mark Ready 🍕", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = { onUpdateStatus(OrderStatus.OUT_FOR_DELIVERY) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PolishPrimaryRed,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                        ) {
+                            Text("Dispatch 🛵", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+                OrderStatus.READY_FOR_PICKUP -> {
+                    Button(
+                        onClick = { onUpdateStatus(OrderStatus.OUT_FOR_DELIVERY) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PolishPrimaryRed,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Text("Dispatch / Out for Delivery 🛵", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+                OrderStatus.OUT_FOR_DELIVERY -> {
+                    Button(
+                        onClick = { onUpdateStatus(OrderStatus.DELIVERED) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2E7D32),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Text("Mark Delivered 🎉", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+                OrderStatus.DELIVERED -> {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFE8F5E9),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA5D6A7)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text("🎉 Order Delivered Successfully", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), fontSize = 12.5.sp)
+                        }
+                    }
+                }
+                OrderStatus.CANCELLED -> {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFFFEBEE),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF9A9A)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text("❌ Order Cancelled", fontWeight = FontWeight.Bold, color = Color(0xFFC62828), fontSize = 12.5.sp)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             // Manual Status Buttons Row (All 5 Stages)
             Text(
-                text = "Update Status Manually:",
+                text = "Manual Status Override:",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
             )
             Spacer(modifier = Modifier.height(6.dp))

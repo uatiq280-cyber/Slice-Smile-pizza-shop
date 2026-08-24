@@ -721,21 +721,51 @@ fun RealTimeStatusStepper(
     progress: Float
 ) {
     val steps = listOf(
-        Triple("Received", OrderStatus.ORDER_RECEIVED, "📥"),
-        Triple("Preparing", OrderStatus.PREPARING_PIZZA, "🧑‍🍳"),
-        Triple("Ready", OrderStatus.READY_FOR_PICKUP, "🍕"),
-        Triple("Out for Delivery", OrderStatus.OUT_FOR_DELIVERY, "🛵"),
-        Triple("Delivered", OrderStatus.DELIVERED, "🎉")
+        Triple("1. Order Placed", OrderStatus.ORDER_RECEIVED, "📋"),
+        Triple("2. Preparing", OrderStatus.PREPARING_PIZZA, "🧑‍🍳"),
+        Triple("3. On the Way", OrderStatus.OUT_FOR_DELIVERY, "🛵"),
+        Triple("4. Delivered", OrderStatus.DELIVERED, "🎉")
     )
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(PolishBgLight)
+            .background(Color(0xFFFFF8F8))
             .border(1.dp, PolishBorder, RoundedCornerShape(18.dp))
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
+        // Status Heading
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Live Order Progress",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    color = PolishMaroonDark
+                )
+            )
+            Text(
+                text = when (currentStatus) {
+                    OrderStatus.ORDER_RECEIVED -> "Waiting for acceptance ⏳"
+                    OrderStatus.PREPARING_PIZZA -> "Accepted & Baking 🔥"
+                    OrderStatus.READY_FOR_PICKUP -> "Ready for Pickup 📦"
+                    OrderStatus.OUT_FOR_DELIVERY -> "Rider Dispatched 🛵"
+                    OrderStatus.DELIVERED -> "Delivered 🎉"
+                    OrderStatus.CANCELLED -> "Cancelled ❌"
+                },
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = PolishPrimaryRed
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         // Progress Bar
         LinearProgressIndicator(
             progress = { progress },
@@ -756,7 +786,7 @@ fun RealTimeStatusStepper(
         ) {
             steps.forEachIndexed { index, (label, status, emoji) ->
                 val isActive = currentStatus.stepIndex >= status.stepIndex
-                val isCurrent = currentStatus == status
+                val isCurrent = (currentStatus == status) || (currentStatus == OrderStatus.READY_FOR_PICKUP && status == OrderStatus.PREPARING_PIZZA)
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -764,7 +794,7 @@ fun RealTimeStatusStepper(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
                             .background(
                                 if (isCurrent) PolishPrimaryRed
@@ -788,7 +818,7 @@ fun RealTimeStatusStepper(
                         } else {
                             Text(
                                 text = emoji,
-                                fontSize = 16.sp
+                                fontSize = 17.sp
                             )
                         }
                     }
