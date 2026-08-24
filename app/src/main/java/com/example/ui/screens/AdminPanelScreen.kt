@@ -395,6 +395,7 @@ fun AdminPanelScreen(
                         onSearchChange = { searchQuery = it },
                         selectedCategory = selectedCategory,
                         onCategoryChange = { selectedCategory = it },
+                        onAddNewItem = onAddNewItem,
                         onEditItem = onEditItem,
                         onDeleteItem = { itemPendingDelete = it },
                         onToggleStock = onToggleStock,
@@ -1068,6 +1069,7 @@ private fun AdminMenuList(
     onSearchChange: (String) -> Unit,
     selectedCategory: MenuCategory?,
     onCategoryChange: (MenuCategory?) -> Unit,
+    onAddNewItem: () -> Unit,
     onEditItem: (MenuItem) -> Unit,
     onDeleteItem: (MenuItem) -> Unit,
     onToggleStock: (MenuItem, Boolean) -> Unit,
@@ -1082,7 +1084,7 @@ private fun AdminMenuList(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchChange,
-                    placeholder = { Text("Search deal, pizza, burger to edit rate...") },
+                    placeholder = { Text("Search deal, pizza, burger, drink to edit rate...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PolishTextMuted) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -1138,19 +1140,33 @@ private fun AdminMenuList(
         }
 
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Menu Items (${menuItems.size})",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = PolishTextDark)
-                )
-                TextButton(onClick = onResetConfirm) {
-                    Text("Reset Menu Defaults 🔄", color = PolishPrimaryRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Menu Items (${menuItems.size})",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = PolishTextDark)
+                    )
+                    TextButton(onClick = onResetConfirm) {
+                        Text("Reset Defaults 🔄", color = PolishPrimaryRed, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = onAddNewItem,
+                    colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("admin_menu_add_item_top_btn"),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add New Item / Cold Drink / Deal ➕", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }

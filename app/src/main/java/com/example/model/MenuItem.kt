@@ -7,12 +7,15 @@ enum class MenuCategory(val displayName: String, val iconResName: String) {
     BIRTHDAY_DEALS("Birthday Deals", "cake"),
     PIZZA("Pizza", "local_pizza"),
     SPECIAL_PIZZA("Special Pizza", "star"),
-    BURGER("Burger", "lunch_dining"),
+    BURGER("Burgers", "lunch_dining"),
     SHAWARMA("Shawarma", "kebab_dining"),
-    BROAST("Broast", "restaurant"),
+    BROAST("Broast & Leg Piece", "restaurant"),
     WINGS_FRIES("Wings & Fries", "fastfood"),
     PASTA("Pasta", "dinner_dining"),
-    WRAP("Wrap", "takeout_dining")
+    CHINESE("Chinese", "ramen_dining"),
+    COLD_DRINKS("Cold Drinks", "local_drink"),
+    JUICES_SHAKES("Juices & Shakes", "blender"),
+    WRAP("Wraps & Rolls", "takeout_dining")
 }
 
 enum class PortionSize(val label: String) {

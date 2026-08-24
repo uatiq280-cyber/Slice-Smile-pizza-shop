@@ -91,7 +91,6 @@ import com.example.ui.theme.WhatsAppGreen
 fun OrdersTrackScreen(
     orders: List<Order>,
     onOpenFeedback: (Order) -> Unit,
-    onStatusAdvance: (orderId: Long, nextStatus: OrderStatus) -> Unit,
     onNavigateToMenu: () -> Unit
 ) {
     if (orders.isEmpty()) {
@@ -207,8 +206,7 @@ fun OrdersTrackScreen(
         items(orders, key = { it.orderId }) { order ->
             RealTimeOrderTrackingCard(
                 order = order,
-                onOpenFeedback = { onOpenFeedback(order) },
-                onStatusAdvance = { nextStatus -> onStatusAdvance(order.orderId, nextStatus) }
+                onOpenFeedback = { onOpenFeedback(order) }
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -218,8 +216,7 @@ fun OrdersTrackScreen(
 @Composable
 fun RealTimeOrderTrackingCard(
     order: Order,
-    onOpenFeedback: () -> Unit,
-    onStatusAdvance: (OrderStatus) -> Unit
+    onOpenFeedback: () -> Unit
 ) {
     val context = LocalContext.current
     val isDelivered = order.status == OrderStatus.DELIVERED
@@ -675,40 +672,33 @@ fun RealTimeOrderTrackingCard(
                     }
                 }
             } else {
-                // Interactive Status Advance simulation button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(PolishBgLight)
-                        .clickable {
-                            val next = when (order.status) {
-                                OrderStatus.ORDER_RECEIVED -> OrderStatus.PREPARING_PIZZA
-                                OrderStatus.PREPARING_PIZZA -> OrderStatus.READY_FOR_PICKUP
-                                OrderStatus.READY_FOR_PICKUP -> OrderStatus.OUT_FOR_DELIVERY
-                                OrderStatus.OUT_FOR_DELIVERY -> OrderStatus.DELIVERED
-                                else -> OrderStatus.DELIVERED
-                            }
-                            onStatusAdvance(next)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                // Live Status Indicator for customer (Status is strictly updated by Owner/Admin/Rider)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = PolishPrimaryContainerSubtle,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        tint = PolishPrimaryRed,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Advance Status: ${order.status.label} ➔ Next Stage",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = PolishPrimaryRed,
-                            fontWeight = FontWeight.Bold
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(PolishPrimaryRed)
                         )
-                    )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Live Status • Updating in real-time from Restaurant 🍕",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = PolishMaroonDark,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
                 }
             }
         }

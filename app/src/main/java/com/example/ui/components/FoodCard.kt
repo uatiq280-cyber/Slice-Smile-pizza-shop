@@ -24,7 +24,9 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.LocalPizza
 import androidx.compose.material.icons.filled.LunchDining
-import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.DinnerDining
+import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.RamenDining
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -373,7 +375,10 @@ private fun getCategoryIcon(category: MenuCategory): ImageVector {
         MenuCategory.DEALS, MenuCategory.FAMILY_DEALS, MenuCategory.BIRTHDAY_DEALS -> Icons.Default.Fastfood
         MenuCategory.PIZZA, MenuCategory.SPECIAL_PIZZA -> Icons.Default.LocalPizza
         MenuCategory.BURGER, MenuCategory.SHAWARMA -> Icons.Default.LunchDining
-        MenuCategory.BROAST, MenuCategory.WINGS_FRIES, MenuCategory.PASTA, MenuCategory.WRAP -> Icons.Default.Restaurant
+        MenuCategory.BROAST, MenuCategory.WINGS_FRIES, MenuCategory.WRAP -> Icons.Default.Fastfood
+        MenuCategory.PASTA -> Icons.Default.DinnerDining
+        MenuCategory.CHINESE -> Icons.Default.RamenDining
+        MenuCategory.COLD_DRINKS, MenuCategory.JUICES_SHAKES -> Icons.Default.LocalDrink
         else -> Icons.Default.LocalPizza
     }
 }

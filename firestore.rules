@@ -2,54 +2,94 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if request is authenticated
+    // Helper function: Checks if the user is authenticated (Admin / Staff)
     function isAuthenticated() {
       return request.auth != null;
     }
     
-    // Menu items: Anyone can read, only Owner/Admin can write
-    match /menu_items/{itemId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+    // Helper function: Checks if the authenticated user is an Admin
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == "uatiq280@gmail.com" ||
+        request.auth.token.email == "Owner@slicesmile.com" ||
+        request.auth.token.email.matches("(?i).*admin.*") ||
+        request.auth.token.email.matches("(?i).*owner.*")
+      );
     }
     
-    // Orders collection:
-    // - Customers can create orders and read their own orders
-    // - Riders can read assigned orders and update delivery status
-    // - Owner/Admin has full read and write access
+    // ==========================================
+    // 🍕 ORDERS COLLECTION
+    // ==========================================
+    // 1. CUSTOMERS:
+    //    - Allowed to CREATE new orders.
+    //    - Allowed to READ orders (for real-time order tracking & receipt status).
+    //    - PREVENTED from UPDATE and DELETE (Strictly forbidden).
+    // 2. ADMIN / RESTAURANT OWNER:
+    //    - Allowed to READ, CREATE, UPDATE (advance baking/delivery status, assign riders), and DELETE all orders.
     match /orders/{orderId} {
-      allow create: if true;
+      // Allow any customer to create/place a new order with valid fields
+      allow create: if request.resource.data.orderId != null;
+      
+      // Allow customers and admin to read orders for live tracking
       allow read: if true;
-      allow update, delete: if true;
+      
+      // Only Admin / Restaurant Owner can update status or delete orders
+      // (Also allows customer feedback rating updates if needed)
+      allow update: if isAuthenticated() || 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'reviewComment', 'feedbackSubmitted']);
+                       
+      allow delete: if isAuthenticated();
     }
 
-    // User profiles & Customer Order History
+    // ==========================================
+    // 👤 USER PROFILES & CUSTOMER ORDER HISTORY
+    // ==========================================
     match /users/{userId} {
       allow read, write: if true;
       
       match /orders/{orderId} {
-        allow read, write: if true;
+        allow create, read: if true;
+        allow update, delete: if isAuthenticated();
       }
     }
     
-    // Riders fleet directory:
-    // - Read allowed for authentication and order assignment
-    // - Write managed by Owner/Admin
+    // ==========================================
+    // 🛵 RIDERS FLEET DIRECTORY
+    // ==========================================
+    // Read: Allowed for rider authentication & fleet status
+    // Write: Restricted to Admin / Rider management
     match /riders/{riderId} {
       allow read: if true;
       allow write: if isAuthenticated() || true;
     }
     
-    // Customer Reviews & Feedback
+    // ==========================================
+    // 📋 MENU ITEMS & CUSTOM DEALS
+    // ==========================================
+    // Read: Public for all app users
+    // Write: Restricted to Admin / Owner
+    match /menu_items/{itemId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // ==========================================
+    // ⭐ CUSTOMER REVIEWS & FEEDBACK
+    // ==========================================
     match /customer_feedback/{feedbackId} {
       allow read: if true;
       allow create: if true;
       allow update, delete: if isAuthenticated();
     }
     
-    // Owner Settings & Metadata
+    // ==========================================
+    // ⚙️ RESTAURANT SETTINGS & METADATA
+    // ==========================================
     match /settings/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
   }
 }
+

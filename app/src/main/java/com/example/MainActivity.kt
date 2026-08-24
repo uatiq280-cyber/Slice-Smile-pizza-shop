@@ -367,7 +367,6 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                     OrdersTrackScreen(
                         orders = customerOrders,
                         onOpenFeedback = viewModel::setFeedbackOrder,
-                        onStatusAdvance = viewModel::updateManualOrderStatus,
                         onNavigateToMenu = {
                             navController.navigate(Screen.Menu.route)
                         }

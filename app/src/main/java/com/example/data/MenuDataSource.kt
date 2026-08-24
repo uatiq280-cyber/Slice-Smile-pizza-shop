@@ -524,6 +524,149 @@ object MenuDataSource {
             category = MenuCategory.WRAP,
             description = "Smoky grilled chicken boti rolled in paratha with onions, mint raita & spicy chutney.",
             basePrice = 230
+        ),
+
+        // === CHINESE & PASTA ===
+        MenuItem(
+            id = "chinese_chowmein",
+            name = "Chicken Chowmein",
+            category = MenuCategory.CHINESE,
+            description = "Wok-tossed egg noodles with shredded chicken breast, cabbage, bell peppers & soya garlic sauce.",
+            basePrice = 450,
+            isPopular = true,
+            tag = "Special Chinese"
+        ),
+        MenuItem(
+            id = "chinese_fried_rice",
+            name = "Egg & Chicken Fried Rice",
+            category = MenuCategory.CHINESE,
+            description = "Aromatic basmati rice stir-fried with scrambled eggs, diced chicken and crunchy spring onions.",
+            basePrice = 390
+        ),
+        MenuItem(
+            id = "chinese_manchurian",
+            name = "Chicken Manchurian with Rice",
+            category = MenuCategory.CHINESE,
+            description = "Classic red sweet & sour garlic chicken cubes served piping hot with egg fried rice.",
+            basePrice = 580,
+            isPopular = true
+        ),
+        MenuItem(
+            id = "chinese_shashlik",
+            name = "Chicken Shashlik with Rice",
+            category = MenuCategory.CHINESE,
+            description = "Tender boneless chicken with capsicum, tomatoes & onions in tangy shashlik gravy + fried rice.",
+            basePrice = 590,
+            isSpicy = true
+        ),
+        MenuItem(
+            id = "chinese_soup",
+            name = "Hot & Sour Soup",
+            category = MenuCategory.CHINESE,
+            description = "Thick comforting soup with minced chicken, mushrooms, egg drops, black pepper and vinegar.",
+            basePrice = 320,
+            isSpicy = true
+        ),
+
+        // === COLD DRINKS & SODA ===
+        MenuItem(
+            id = "drink_soft_regular",
+            name = "Gourmet Soft Drink (500ml)",
+            category = MenuCategory.COLD_DRINKS,
+            description = "Chilled 500ml Bottle (Coke, Sprite, Fanta, Dew, Sting Berry).",
+            basePrice = 100,
+            isPopular = true
+        ),
+        MenuItem(
+            id = "drink_soft_1litre",
+            name = "Soft Drink (1 Litre)",
+            category = MenuCategory.COLD_DRINKS,
+            description = "Chilled 1.0 Litre Family Bottle (Coke / Sprite / Fanta / Dew).",
+            basePrice = 180
+        ),
+        MenuItem(
+            id = "drink_soft_1_5litre",
+            name = "Soft Drink (1.5 Litre)",
+            category = MenuCategory.COLD_DRINKS,
+            description = "Chilled 1.5 Litre Big Party Bottle (Coke / Sprite / Dew).",
+            basePrice = 240,
+            isPopular = true
+        ),
+        MenuItem(
+            id = "drink_soft_jumbo",
+            name = "Soft Drink Jumbo (2.25 Litre)",
+            category = MenuCategory.COLD_DRINKS,
+            description = "Mega 2.25 Litre Jumbo Party Bottle for gatherings.",
+            basePrice = 300
+        ),
+        MenuItem(
+            id = "drink_mineral_water",
+            name = "Nestle Mineral Water",
+            category = MenuCategory.COLD_DRINKS,
+            description = "Pure & refreshing chilled mineral water bottle.",
+            basePrice = 60,
+            sizeOptions = listOf(
+                SizeOption(PortionSize.SMALL, 60),
+                SizeOption(PortionSize.LARGE, 110)
+            )
+        ),
+        MenuItem(
+            id = "drink_mint_margarita",
+            name = "Fresh Mint Margarita / Lemonade",
+            category = MenuCategory.COLD_DRINKS,
+            description = "Freshly blended fresh mint leaves, lemon juice, black salt, crushed ice and 7Up.",
+            basePrice = 220,
+            isPopular = true,
+            tag = "Refreshing"
+        ),
+
+        // === JUICES & MILKSHAKES ===
+        MenuItem(
+            id = "shake_mango",
+            name = "Mango Thick Shake",
+            category = MenuCategory.JUICES_SHAKES,
+            description = "Rich creamy Alphonso mango pulp blended with rich fresh milk and vanilla ice-cream scoop.",
+            basePrice = 280,
+            isPopular = true,
+            tag = "Thick Shake"
+        ),
+        MenuItem(
+            id = "shake_banana_dates",
+            name = "Khajoor Banana Milkshake (Special)",
+            category = MenuCategory.JUICES_SHAKES,
+            description = "Healthy natural energy shake packed with sweet dates (khajoor), fresh bananas, almonds and milk.",
+            basePrice = 270,
+            tag = "Energy Booster"
+        ),
+        MenuItem(
+            id = "shake_oreo_chocolate",
+            name = "Oreo Chocolate Crunch Shake",
+            category = MenuCategory.JUICES_SHAKES,
+            description = "Crushed Oreo cookies, rich Belgian chocolate syrup, ice cream and chilled milk with whipped topping.",
+            basePrice = 320,
+            isPopular = true,
+            tag = "Kids Favorite"
+        ),
+        MenuItem(
+            id = "shake_strawberry",
+            name = "Fresh Strawberry Milkshake",
+            category = MenuCategory.JUICES_SHAKES,
+            description = "Sweet farm strawberries blended smooth with fresh milk and ice cream.",
+            basePrice = 290
+        ),
+        MenuItem(
+            id = "juice_fresh_seasonal",
+            name = "Fresh Seasonal Fruit Juice",
+            category = MenuCategory.JUICES_SHAKES,
+            description = "100% pure fresh squeezed juice (Apple, Orange, Mosambi, or Peach) with no added sugar.",
+            basePrice = 260
+        ),
+        MenuItem(
+            id = "shake_doodh_soda",
+            name = "Special Rooh Afza Doodh Soda",
+            category = MenuCategory.JUICES_SHAKES,
+            description = "Classic chilled refreshing blend of fresh milk, Pakola/7Up soda and Rooh Afza rose syrup.",
+            basePrice = 190
         )
     )
 
