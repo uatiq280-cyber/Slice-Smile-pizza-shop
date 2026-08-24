@@ -22,6 +22,15 @@ service cloud.firestore {
       allow read: if true;
       allow update, delete: if true;
     }
+
+    // User profiles & Customer Order History
+    match /users/{userId} {
+      allow read, write: if true;
+      
+      match /orders/{orderId} {
+        allow read, write: if true;
+      }
+    }
     
     // Riders fleet directory:
     // - Read allowed for authentication and order assignment

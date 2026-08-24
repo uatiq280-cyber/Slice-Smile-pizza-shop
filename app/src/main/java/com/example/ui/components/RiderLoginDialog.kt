@@ -57,9 +57,8 @@ fun RiderLoginDialog(
     onDismiss: () -> Unit,
     onLogin: (phoneOrId: String, pin: String) -> Unit
 ) {
-    var selectedRiderId by remember { mutableStateOf(availableRiders.firstOrNull()?.id ?: "rider_tariq") }
-    var phoneOrId by remember { mutableStateOf(availableRiders.firstOrNull()?.phone ?: "0303-7448255") }
-    var pin by remember { mutableStateOf("1234") }
+    var phoneOrId by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -108,57 +107,16 @@ fun RiderLoginDialog(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Quick Rider selector pill list
-                if (availableRiders.isNotEmpty()) {
-                    Text(
-                        text = "Select Registered Rider:",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = PolishTextDark),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        availableRiders.take(3).forEach { r ->
-                            val isSelected = (selectedRiderId == r.id)
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) PolishPrimaryRed else PolishBgLight,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isSelected) PolishPrimaryRed else PolishBorder
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(38.dp),
-                                onClick = {
-                                    selectedRiderId = r.id
-                                    phoneOrId = r.phone
-                                    pin = r.pin.ifBlank { "1234" }
-                                }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = r.name.split(" ").firstOrNull() ?: r.name,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else PolishMaroonDark
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
+                Spacer(modifier = Modifier.height(18.dp))
 
                 OutlinedTextField(
                     value = phoneOrId,
-                    onValueChange = { phoneOrId = it },
-                    label = { Text("Rider Phone or ID") },
+                    onValueChange = { 
+                        phoneOrId = it
+                        errorMessage = null
+                    },
+                    label = { Text("Registered Mobile Number / Rider ID") },
+                    placeholder = { Text("e.g. 0300-1234567") },
                     leadingIcon = {
                         Icon(Icons.Default.Person, contentDescription = null, tint = PolishPrimaryRed)
                     },
@@ -177,8 +135,12 @@ fun RiderLoginDialog(
 
                 OutlinedTextField(
                     value = pin,
-                    onValueChange = { pin = it },
-                    label = { Text("4-Digit Security PIN (Default: 1234)") },
+                    onValueChange = { 
+                        pin = it
+                        errorMessage = null
+                    },
+                    label = { Text("Security PIN") },
+                    placeholder = { Text("Enter 4-digit PIN") },
                     leadingIcon = {
                         Icon(Icons.Default.Lock, contentDescription = null, tint = PolishPrimaryRed)
                     },

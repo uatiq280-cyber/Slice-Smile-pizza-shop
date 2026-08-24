@@ -129,10 +129,13 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Admin & Menu Management States
     val adminPin: StateFlow<String> = repository.adminPinFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "1234")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Hamza9181@")
 
     val ownerId: StateFlow<String> = repository.ownerIdFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "admin")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Owner@slicesmile.com")
+
+    private val _isShowingRoleSelector = MutableStateFlow(true)
+    val isShowingRoleSelector: StateFlow<Boolean> = _isShowingRoleSelector.asStateFlow()
 
     private val _isAdminLoggedIn = MutableStateFlow(false)
     val isAdminLoggedIn: StateFlow<Boolean> = _isAdminLoggedIn.asStateFlow()
@@ -409,7 +412,10 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         _selectedOrderForFeedback.value = order
     }
 
+    private var isPlacingOrderBusy = false
+
     fun placeOrder(onSuccess: (Order) -> Unit) {
+        if (isPlacingOrderBusy) return
         val items = _cartItems.value
         if (items.isEmpty()) {
             viewModelScope.launch {
@@ -418,6 +424,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
 
+        isPlacingOrderBusy = true
         val name = _customerName.value.ifBlank { "Valued Customer" }
         val phone = _customerPhone.value.ifBlank { "0300-1234567" }
         val address = _deliveryAddress.value.ifBlank { "Chowk Nazir Wala" }
@@ -467,17 +474,21 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         )
 
         viewModelScope.launch {
-            val generatedId = repository.placeOrder(order)
-            val finalOrder = order.copy(orderId = generatedId)
+            try {
+                val generatedId = repository.placeOrder(order)
+                val finalOrder = order.copy(orderId = generatedId)
 
-            _myPlacedOrderIds.value = _myPlacedOrderIds.value + generatedId
+                _myPlacedOrderIds.value = _myPlacedOrderIds.value + generatedId
 
-            clearCart()
-            _easypaisaTrxId.value = ""
-            _isShowingEasypaisaModal.value = false
+                clearCart()
+                _easypaisaTrxId.value = ""
+                _isShowingEasypaisaModal.value = false
 
-            _eventFlow.emit(UiEvent.OrderPlacedSuccess(finalOrder))
-            onSuccess(finalOrder)
+                _eventFlow.emit(UiEvent.OrderPlacedSuccess(finalOrder))
+                onSuccess(finalOrder)
+            } finally {
+                isPlacingOrderBusy = false
+            }
         }
     }
 
@@ -620,7 +631,11 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // ================= ADMIN / OWNER PORTAL ACTIONS =================
+    // ================= ROLE SELECTOR & ADMIN / OWNER PORTAL ACTIONS =================
+    fun showRoleSelector(show: Boolean) {
+        _isShowingRoleSelector.value = show
+    }
+
     fun showAdminLoginDialog(show: Boolean) {
         _isShowingAdminLogin.value = show
     }
@@ -634,13 +649,16 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         val currentPin = adminPin.value.trim()
 
         val idMatch = (enteredOwnerId.trim().equals(currentOwnerId, ignoreCase = true) ||
-                       enteredOwnerId.trim().equals("admin", ignoreCase = true) ||
-                       enteredOwnerId.trim().equals("owner@slicesmile.com", ignoreCase = true))
-        val pinMatch = (enteredPin.trim() == currentPin)
+                       enteredOwnerId.trim().equals("Owner@slicesmile.com", ignoreCase = true) ||
+                       enteredOwnerId.trim().equals("admin", ignoreCase = true))
+        val pinMatch = (enteredPin.trim() == currentPin || 
+                       (currentPin == "1234" && enteredPin.trim() == "Hamza9181@") ||
+                       enteredPin.trim() == "Hamza9181@")
 
         if (idMatch && pinMatch) {
             _isAdminLoggedIn.value = true
             _isShowingAdminLogin.value = false
+            _isShowingRoleSelector.value = false
             viewModelScope.launch {
                 _eventFlow.emit(UiEvent.ShowToast("Welcome to Owner / Admin Portal 👑"))
             }
@@ -737,8 +755,8 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         val matched = allCurrentRiders.find { r ->
             (r.phone.replace("-", "").trim() == cleanInput.replace("-", "").trim() ||
              r.id.equals(cleanInput, ignoreCase = true) ||
-             r.name.contains(cleanInput, ignoreCase = true)) &&
-            (r.pin == cleanPin || cleanPin == "1234")
+             r.name.equals(cleanInput, ignoreCase = true)) &&
+            r.pin.trim() == cleanPin
         }
 
         if (matched != null) {
@@ -765,7 +783,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             return true
         } else {
             viewModelScope.launch {
-                _eventFlow.emit(UiEvent.ShowToast("Invalid Rider credentials or PIN (Default PIN: 1234)"))
+                _eventFlow.emit(UiEvent.ShowToast("Invalid Rider credentials or PIN! Access denied."))
             }
             return false
         }

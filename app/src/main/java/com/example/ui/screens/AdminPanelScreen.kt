@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocalPizza
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.Moped
@@ -699,9 +701,11 @@ private fun AdminOrderCard(
                         )
                     )
                     Text(
-                        text = "${order.customerPhone} • ${order.deliveryAddress}",
-                        style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted),
-                        maxLines = 1
+                        text = "📞 ${order.customerPhone}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = PolishPrimaryRed,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     )
                 }
 
@@ -715,36 +719,121 @@ private fun AdminOrderCard(
                             )
                         },
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
                             .background(WhatsAppGreen)
                     ) {
-                        Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color.White, modifier = Modifier.size(18.dp))
                     }
 
                     IconButton(
                         onClick = { WhatsAppOrderHelper.makePhoneCall(context, order.customerPhone) },
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
                             .background(PolishPrimaryRed)
                     ) {
-                        Icon(Icons.Default.Call, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Call, contentDescription = "Call", tint = Color.White, modifier = Modifier.size(18.dp))
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Items summary
-            Text(
-                text = order.itemsSummary,
-                style = MaterialTheme.typography.bodySmall.copy(color = PolishTextDark, lineHeight = 18.sp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(PolishBgLight, RoundedCornerShape(10.dp))
-                    .padding(10.dp)
-            )
+            // Delivery Location & Address (Kahan Deliver Karna Hai)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFFF8E1),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFE082)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Delivery Address",
+                        tint = Color(0xFFE65100),
+                        modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "Delivery Location (ڈلیوری ایڈریس):",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE65100),
+                                fontSize = 11.sp
+                            )
+                        )
+                        Text(
+                            text = order.deliveryAddress,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = PolishTextDark,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        if (!order.areaLandmark.isNullOrBlank()) {
+                            Text(
+                                text = "Landmark: ${order.areaLandmark}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = PolishTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                        if (!order.orderNote.isNullOrBlank()) {
+                            Text(
+                                text = "Note: ${order.orderNote}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color(0xFFC62828),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Items summary (Kiya Order Ha)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = PolishBgLight,
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocalPizza,
+                            contentDescription = "Items Ordered",
+                            tint = PolishPrimaryRed,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Ordered Items (${order.itemsCount}x):",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = PolishMaroonDark
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = order.itemsSummary,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = PolishTextDark,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 

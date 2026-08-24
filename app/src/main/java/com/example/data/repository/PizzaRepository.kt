@@ -348,11 +348,11 @@ class PizzaRepository(
     }
 
     val adminPinFlow: Flow<String> = adminDao.getConfigFlow("admin_pin").map {
-        it ?: "1234"
+        it ?: "Hamza9181@"
     }
 
     val ownerIdFlow: Flow<String> = adminDao.getConfigFlow("owner_id").map {
-        it ?: "admin"
+        it ?: "Owner@slicesmile.com"
     }
 
     val customMenuItemsFlow: Flow<List<CustomMenuItemEntity>> = customMenuItemDao.getAllCustomMenuItemsFlow()
@@ -366,11 +366,11 @@ class PizzaRepository(
     }
 
     suspend fun getAdminPin(): String {
-        return adminDao.getConfig("admin_pin") ?: "1234"
+        return adminDao.getConfig("admin_pin") ?: "Hamza9181@"
     }
 
     suspend fun getOwnerId(): String {
-        return adminDao.getConfig("owner_id") ?: "admin"
+        return adminDao.getConfig("owner_id") ?: "Owner@slicesmile.com"
     }
 
     suspend fun updateAdminPin(newPin: String) {

@@ -54,6 +54,7 @@ import com.example.ui.components.LocationSelectorSheet
 import com.example.ui.components.PizzaTopBar
 import com.example.ui.components.RiderLoginDialog
 import com.example.ui.components.RiderManagementDialog
+import com.example.ui.components.RoleSelectionWelcomeDialog
 import com.example.ui.navigation.Screen
 import com.example.ui.navigation.navigationScreens
 import com.example.ui.screens.AdminPanelScreen
@@ -149,7 +150,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val loyaltyProfile by viewModel.loyaltyProfile.collectAsState()
     val customerReviews by viewModel.customerReviews.collectAsState()
 
-    // Admin & Menu Management States
+    // Role Selector & Admin & Menu Management States
+    val isShowingRoleSelector by viewModel.isShowingRoleSelector.collectAsState()
     val isAdminLoggedIn by viewModel.isAdminLoggedIn.collectAsState()
     val isShowingAdminLogin by viewModel.isShowingAdminLogin.collectAsState()
     val isShowingChangePinDialog by viewModel.isShowingChangePinDialog.collectAsState()
@@ -497,6 +499,19 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                         }
                     }
                 }
+            }
+
+            // App Startup Role Selection Dialog (Customer vs Admin Mode)
+            if (isShowingRoleSelector) {
+                RoleSelectionWelcomeDialog(
+                    onSelectCustomer = {
+                        viewModel.showRoleSelector(false)
+                    },
+                    onSelectAdmin = {
+                        viewModel.showRoleSelector(false)
+                        viewModel.showAdminLoginDialog(true)
+                    }
+                )
             }
 
             // Customer Authentication Modal (Guest, Mobile OTP, Gmail)

@@ -139,7 +139,7 @@ fun AdminLoginDialog(
                         errorMessage = null
                     },
                     label = { Text("Owner ID / Username") },
-                    placeholder = { Text("admin or owner@slicesmile.com") },
+                    placeholder = { Text("Enter Owner Username") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Text,
@@ -172,8 +172,8 @@ fun AdminLoginDialog(
                         pinText = it
                         errorMessage = null
                     },
-                    label = { Text("Owner Password / PIN (پاس ورڈ)") },
-                    placeholder = { Text("Default PIN: 1234") },
+                    label = { Text("Owner Password / Security PIN") },
+                    placeholder = { Text("Enter Password") },
                     singleLine = true,
                     visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -207,7 +207,7 @@ fun AdminLoginDialog(
                             )
                         } else {
                             Text(
-                                text = "Default: ID: admin | Password: 1234",
+                                text = "Authorized personnel only • Secure authentication",
                                 color = PolishTextMuted,
                                 fontSize = 11.sp
                             )
