@@ -20,19 +20,14 @@ class SliceSmileApp : Application() {
             Log.e("SliceSmileApp", "Error initializing notification channels", e)
         }
 
-        // 2. Initialize Firebase App if needed
+        // 2. Initialize Firebase App using bulletproof FirebaseInitHelper
         try {
-            if (FirebaseApp.getApps(this).isEmpty()) {
-                FirebaseApp.initializeApp(this)
-            }
-            Log.d("SliceSmileApp", "FirebaseApp initialized successfully")
+            val firebaseApp = com.example.service.FirebaseInitHelper.getOrInitFirebaseApp(this)
+            Log.d("SliceSmileApp", "FirebaseApp initialized successfully: ${firebaseApp.name}")
 
             // Configure Firestore settings for optimal real-time sync
-            val db = FirebaseFirestore.getInstance()
-            val settings = FirebaseFirestoreSettings.Builder()
-                .setPersistenceEnabled(true)
-                .build()
-            db.firestoreSettings = settings
+            val db = com.example.service.FirebaseInitHelper.getFirestore(this)
+            Log.d("SliceSmileApp", "Firestore initialized successfully")
         } catch (e: Exception) {
             Log.w("SliceSmileApp", "FirebaseApp init notice: ${e.message}")
         }

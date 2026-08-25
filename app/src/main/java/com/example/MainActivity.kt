@@ -90,6 +90,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // 0. Ensure FirebaseApp is initialized early
+        try {
+            com.example.service.FirebaseInitHelper.getOrInitFirebaseApp(this)
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Firebase early init: ${e.message}")
+        }
+
         // Initialize Notification Channels
         NotificationHelper.initNotificationChannels(this)
 

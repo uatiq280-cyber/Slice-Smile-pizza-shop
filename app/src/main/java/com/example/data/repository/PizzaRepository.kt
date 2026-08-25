@@ -81,16 +81,18 @@ class PizzaRepository(
         isAdminActive = active
     }
 
+    private fun getDb(): FirebaseFirestore {
+        return firestore ?: com.example.service.FirebaseInitHelper.getFirestore(context).also { firestore = it }
+    }
+
     init {
         initFirebaseAndListeners()
     }
 
     private fun initFirebaseAndListeners() {
         try {
-            if (FirebaseApp.getApps(context).isEmpty()) {
-                FirebaseApp.initializeApp(context)
-            }
-            firestore = FirebaseFirestore.getInstance()
+            val app = com.example.service.FirebaseInitHelper.getOrInitFirebaseApp(context)
+            firestore = com.example.service.FirebaseInitHelper.getFirestore(context)
             try {
                 firestore?.enableNetwork()
             } catch (e: Exception) {
@@ -99,7 +101,7 @@ class PizzaRepository(
 
             // Auto-sign-in anonymously on startup so requests pass Firebase Security Rules if rules require request.auth != null
             try {
-                val auth = FirebaseAuth.getInstance()
+                val auth = com.example.service.FirebaseInitHelper.getAuth(context)
                 if (auth.currentUser == null) {
                     auth.signInAnonymously()
                         .addOnSuccessListener { result ->
@@ -148,7 +150,7 @@ class PizzaRepository(
     // ================= REAL-TIME FIRESTORE ORDER SYNC =================
     private fun listenToFirestoreOrders() {
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             firestoreOrdersListener?.remove()
             // Listen to orders collection directly without restrictive orderBy to prevent index errors
             firestoreOrdersListener = db.collection("orders")
@@ -242,7 +244,7 @@ class PizzaRepository(
 
     suspend fun refreshOrdersFromCloud(): List<Order> = withContext(Dispatchers.IO) {
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val snapshot = com.google.android.gms.tasks.Tasks.await(db.collection("orders").get())
             val orders = snapshot.documents.mapNotNull { parseOrderFromDoc(it) }
             if (orders.isNotEmpty()) {
@@ -270,7 +272,7 @@ class PizzaRepository(
     suspend fun testCloudConnection(): String = withContext(Dispatchers.IO) {
         try {
             _cloudSyncStatus.value = _cloudSyncStatus.value.copy(isTestingPing = true)
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
 
             // 1. Try pinging cloud diagnostics document
             val pingDoc = mapOf(
@@ -441,7 +443,7 @@ class PizzaRepository(
     // ================= REAL-TIME FIRESTORE RIDERS SYNC =================
     private fun listenToFirestoreRiders() {
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             firestoreRidersListener?.remove()
             firestoreRidersListener = db.collection("riders").addSnapshotListener { snapshots, error ->
                 if (error != null || snapshots == null) return@addSnapshotListener
@@ -485,7 +487,7 @@ class PizzaRepository(
     // ================= REAL-TIME FIRESTORE FEEDBACK SYNC =================
     private fun listenToFirestoreFeedback() {
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             firestoreFeedbackListener?.remove()
             firestoreFeedbackListener = db.collection("customer_feedback").addSnapshotListener { snapshots, error ->
                 if (error != null || snapshots == null) return@addSnapshotListener
@@ -587,7 +589,7 @@ class PizzaRepository(
 
     suspend fun syncAdminCredentialsFromCloud() = withContext(Dispatchers.IO) {
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val doc = com.google.android.gms.tasks.Tasks.await(db.collection("admin_config").document("credentials").get())
             if (doc != null && doc.exists()) {
                 val cloudOwnerId = doc.getString("ownerId")
@@ -620,7 +622,7 @@ class PizzaRepository(
 
         // 2. Sync to Firestore admin_config/credentials document
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val credMap = hashMapOf(
                 "ownerId" to cleanOwnerId,
                 "password" to cleanPin,
@@ -641,7 +643,7 @@ class PizzaRepository(
 
         // 3. Update or Create in Firebase Auth
         try {
-            val auth = FirebaseAuth.getInstance()
+            val auth = com.example.service.FirebaseInitHelper.getAuth(context)
             val emailForAuth = if (cleanOwnerId.contains("@")) cleanOwnerId else "$cleanOwnerId@slicesmile.com"
             val currentUser = auth.currentUser
 
@@ -675,7 +677,7 @@ class PizzaRepository(
     suspend fun saveRider(rider: Rider) {
         riderDao.insertOrUpdate(RiderEntity.fromDomain(rider))
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val map = hashMapOf(
                 "id" to rider.id,
                 "name" to rider.name,
@@ -695,7 +697,7 @@ class PizzaRepository(
     suspend fun deleteRider(riderId: String) {
         riderDao.deleteRider(riderId)
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             db.collection("riders").document(riderId).delete()
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore deleteRider error", e)
@@ -705,7 +707,7 @@ class PizzaRepository(
     suspend fun setRiderEnabled(riderId: String, isEnabled: Boolean) {
         riderDao.setRiderEnabled(riderId, isEnabled)
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             db.collection("riders").document(riderId).update("isEnabled", isEnabled)
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore setRiderEnabled error", e)
@@ -715,7 +717,7 @@ class PizzaRepository(
     suspend fun assignRiderToOrder(orderId: Long, rider: Rider) {
         orderDao.assignRider(orderId, rider.id, rider.name, rider.phone, rider.vehicle)
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val riderUpdateMap = mapOf(
                 "riderId" to rider.id,
                 "riderName" to rider.name,
@@ -746,7 +748,7 @@ class PizzaRepository(
     suspend fun saveCustomMenuItem(item: MenuItem, isDeleted: Boolean = false) {
         customMenuItemDao.insertOrUpdate(CustomMenuItemEntity.fromDomain(item, isDeleted))
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val map = hashMapOf(
                 "id" to item.id,
                 "name" to item.name,
@@ -774,7 +776,7 @@ class PizzaRepository(
             )
         )
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             db.collection("menu_items").document(itemId).update("isDeleted", true)
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore deleteCustomMenuItem error", e)
@@ -798,7 +800,7 @@ class PizzaRepository(
 
         // Sync directly to Firestore for Owner/Admin and Rider devices
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val orderMap = hashMapOf(
                 "orderId" to generatedId,
                 "userId" to finalOrder.userId,
@@ -888,7 +890,7 @@ class PizzaRepository(
     suspend fun updateOrderStatus(orderId: Long, status: OrderStatus) {
         orderDao.updateOrderStatus(orderId, status.name)
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val statusUpdateMap = mapOf(
                 "statusName" to status.name,
                 "lastUpdated" to System.currentTimeMillis()
@@ -914,7 +916,7 @@ class PizzaRepository(
         feedbackDao.insertFeedback(FeedbackEntity.fromDomain(feedback))
         orderDao.submitOrderFeedback(feedback.orderId, feedback.overallRating, feedback.comment)
         try {
-            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val db = getDb()
             val feedbackMap = hashMapOf(
                 "id" to feedback.id,
                 "orderId" to feedback.orderId,
