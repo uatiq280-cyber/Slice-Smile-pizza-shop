@@ -47,6 +47,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -107,6 +108,8 @@ fun AdminPanelScreen(
     menuItems: List<MenuItem>,
     orders: List<Order>,
     riders: List<Rider>,
+    isRefreshingOrders: Boolean = false,
+    onRefreshOrders: () -> Unit = {},
     onAddNewItem: () -> Unit,
     onEditItem: (MenuItem) -> Unit,
     onDeleteItem: (String) -> Unit,
@@ -382,6 +385,8 @@ fun AdminPanelScreen(
                     // Orders Management Tab
                     AdminOrdersList(
                         orders = orders,
+                        isRefreshing = isRefreshingOrders,
+                        onRefreshClick = onRefreshOrders,
                         onUpdateOrderStatus = onUpdateOrderStatus,
                         onAssignRiderClick = onAssignRiderClick
                     )
@@ -564,54 +569,131 @@ fun AdminPanelScreen(
 @Composable
 private fun AdminOrdersList(
     orders: List<Order>,
+    isRefreshing: Boolean,
+    onRefreshClick: () -> Unit,
     onUpdateOrderStatus: (orderId: Long, nextStatus: OrderStatus) -> Unit,
     onAssignRiderClick: (Order) -> Unit
 ) {
     val context = LocalContext.current
 
-    if (orders.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp),
-            contentAlignment = Alignment.Center
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Cloud Sync & Realtime Status Header
+        Surface(
+            color = Color(0xFFF0FDF4),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Moped,
-                    contentDescription = null,
-                    tint = PolishTextMuted,
-                    modifier = Modifier.size(54.dp)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "No Customer Orders Placed Yet",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = PolishMaroonDark
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(Color(0xFF22C55E), CircleShape)
                     )
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "When customers place orders, you will receive real-time push alerts and sound notifications here!",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = PolishTextMuted,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Cloud Firestore Live (${orders.size} Orders)",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF15803D),
+                            fontSize = 12.sp
+                        )
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onRefreshClick,
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF22C55E)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF15803D),
+                        containerColor = Color.White
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.testTag("admin_refresh_orders_btn")
+                ) {
+                    if (isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = Color(0xFF15803D),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh Orders",
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isRefreshing) "Syncing..." else "Refresh 🔄",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(orders, key = { it.orderId }) { order ->
-                AdminOrderCard(
-                    order = order,
-                    onUpdateStatus = { nextStatus -> onUpdateOrderStatus(order.orderId, nextStatus) },
-                    onAssignRider = { onAssignRiderClick(order) }
-                )
+
+        if (orders.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Moped,
+                        contentDescription = null,
+                        tint = PolishTextMuted,
+                        modifier = Modifier.size(54.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "No Customer Orders Received Yet",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = PolishMaroonDark
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "When customers on Mobile B, C, or any phone place orders, they will instantly appear here in real-time with sound notifications!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PolishTextMuted,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = onRefreshClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sync All Orders Now 🔄", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                items(orders, key = { it.orderId }) { order ->
+                    AdminOrderCard(
+                        order = order,
+                        onUpdateStatus = { nextStatus -> onUpdateOrderStatus(order.orderId, nextStatus) },
+                        onAssignRider = { onAssignRiderClick(order) }
+                    )
+                }
             }
         }
     }

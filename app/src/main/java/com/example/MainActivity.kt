@@ -106,6 +106,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
 }
 
 @Composable
@@ -144,6 +149,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val easypaisaTrxId by viewModel.easypaisaTrxId.collectAsState()
 
     val ordersList by viewModel.ordersList.collectAsState()
+    val isRefreshingOrders by viewModel.isRefreshingOrders.collectAsState()
     val customerOrders by viewModel.customerOrders.collectAsState()
     val activeOrdersCount = customerOrders.count { it.status != OrderStatus.DELIVERED }
 
@@ -175,6 +181,19 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val isShowingEasypaisaModal by viewModel.isShowingEasypaisaModal.collectAsState()
     val isLocationSelectorVisible by viewModel.isLocationSelectorVisible.collectAsState()
     val selectedOrderForFeedback by viewModel.selectedOrderForFeedback.collectAsState()
+
+    // Handle Deep-Link / Notification Click
+    LaunchedEffect(Unit) {
+        val openScreen = (context as? ComponentActivity)?.intent?.getStringExtra("OPEN_SCREEN")
+        if (openScreen == "admin") {
+            viewModel.refreshOrdersFromCloud()
+            if (isAdminLoggedIn) {
+                navController.navigate(Screen.Admin.route)
+            } else {
+                viewModel.showAdminLoginDialog(true)
+            }
+        }
+    }
 
     // Event Flow Toast Listener
     LaunchedEffect(Unit) {
@@ -434,6 +453,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             menuItems = allMenuItems,
                             orders = ordersList,
                             riders = allRiders,
+                            isRefreshingOrders = isRefreshingOrders,
+                            onRefreshOrders = { viewModel.refreshOrdersFromCloud() },
                             onAddNewItem = { viewModel.openAdminEditItem(null) },
                             onEditItem = { item -> viewModel.openAdminEditItem(item) },
                             onDeleteItem = { id -> viewModel.deleteMenuItem(id) },

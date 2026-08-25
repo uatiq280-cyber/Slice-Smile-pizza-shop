@@ -73,7 +73,11 @@ class PizzaRepository(
             listenToFirestoreOrders()
             listenToFirestoreRiders()
             listenToFirestoreFeedback()
-            Log.d("PizzaRepository", "Firestore listeners initialized successfully.")
+            // Initial fetch to load existing cloud orders immediately
+            repositoryScope.launch {
+                refreshOrdersFromCloud()
+            }
+            Log.d("PizzaRepository", "Firestore listeners and initial fetch initialized successfully.")
         } catch (e: Exception) {
             Log.w("PizzaRepository", "Firestore not available or in local-first fallback mode: ${e.message}")
         }
@@ -84,8 +88,8 @@ class PizzaRepository(
         try {
             val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
             firestoreOrdersListener?.remove()
+            // Listen to orders collection directly without restrictive orderBy to prevent index errors
             firestoreOrdersListener = db.collection("orders")
-                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .addSnapshotListener { snapshots, error ->
                     if (error != null) {
                         Log.e("PizzaRepository", "Firestore orders listen error", error)
@@ -94,65 +98,67 @@ class PizzaRepository(
                     if (snapshots == null) return@addSnapshotListener
 
                     repositoryScope.launch {
-                        val orderEntities = mutableListOf<OrderEntity>()
+                        try {
+                            // 1. Process all documents to ensure Room has all cloud orders synced
+                            val allOrders = snapshots.documents.mapNotNull { parseOrderFromDoc(it) }
+                            if (allOrders.isNotEmpty()) {
+                                val orderEntities = allOrders.map { OrderEntity.fromDomain(it) }
+                                orderDao.insertOrders(orderEntities)
+                            }
 
-                        for (change in snapshots.documentChanges) {
-                            val doc = change.document
-                            val order = parseOrderFromDoc(doc) ?: continue
-                            orderEntities.add(OrderEntity.fromDomain(order))
+                            // 2. Process changes for sound/notifications
+                            for (change in snapshots.documentChanges) {
+                                val doc = change.document
+                                val order = parseOrderFromDoc(doc) ?: continue
 
-                            when (change.type) {
-                                DocumentChange.Type.ADDED -> {
-                                    // Live new order received from customer
-                                    if (order.status == OrderStatus.ORDER_RECEIVED &&
-                                        !notifiedOrderIds.contains(order.orderId) &&
-                                        order.timestamp > (appLaunchTime - 300000) // Within last 5 mins
-                                    ) {
-                                        notifiedOrderIds.add(order.orderId)
-                                        if (isAdminActive) {
-                                            try {
-                                                Log.d("PizzaRepository", "NEW ORDER ARRIVED FOR OWNER -> Triggering Owner Notification & Sound for #${order.orderId}")
-                                                NotificationHelper.notifyOwnerNewOrder(context, order)
-                                            } catch (e: Exception) {
-                                                Log.e("PizzaRepository", "Failed to trigger owner notification", e)
+                                when (change.type) {
+                                    DocumentChange.Type.ADDED -> {
+                                        // Live new order received from customer
+                                        if (!notifiedOrderIds.contains(order.orderId)) {
+                                            notifiedOrderIds.add(order.orderId)
+                                            if (order.status == OrderStatus.ORDER_RECEIVED &&
+                                                order.timestamp > (appLaunchTime - 600000) // Within last 10 mins
+                                            ) {
+                                                try {
+                                                    Log.d("PizzaRepository", "NEW ORDER ARRIVED FOR OWNER -> Triggering Owner Notification & Sound for #${order.orderId}")
+                                                    NotificationHelper.notifyOwnerNewOrder(context, order)
+                                                } catch (e: Exception) {
+                                                    Log.e("PizzaRepository", "Failed to trigger owner notification", e)
+                                                }
                                             }
                                         }
-                                    } else {
-                                        notifiedOrderIds.add(order.orderId)
                                     }
-                                }
-                                DocumentChange.Type.MODIFIED -> {
-                                    // Status update received (e.g. RECEIVED -> PREPARING -> READY -> OUT_FOR_DELIVERY -> DELIVERED)
-                                    try {
-                                        val currentSession = userSessionDao.getUserSession()
-                                        val isCustomerOrder = currentSession != null && (
-                                            currentSession.userId == order.userId ||
-                                            (currentSession.phone.isNotBlank() && currentSession.phone.trim() == order.customerPhone.trim())
-                                        )
-                                        if (isCustomerOrder) {
-                                            val statusTitle = when (order.status) {
-                                                OrderStatus.ORDER_RECEIVED -> "Order Confirmed 📥"
-                                                OrderStatus.PREPARING_PIZZA -> "Baking in Oven 🧑‍🍳"
-                                                OrderStatus.READY_FOR_PICKUP -> "Packed & Ready 🍕"
-                                                OrderStatus.OUT_FOR_DELIVERY -> "Out for Delivery 🛵"
-                                                OrderStatus.DELIVERED -> "Delivered! Enjoy your meal 🎉"
-                                                OrderStatus.CANCELLED -> "Order Cancelled ❌"
+                                    DocumentChange.Type.MODIFIED -> {
+                                        // Status update received (e.g. RECEIVED -> PREPARING -> READY -> OUT_FOR_DELIVERY -> DELIVERED)
+                                        try {
+                                            val currentSession = userSessionDao.getUserSession()
+                                            val isCustomerOrder = currentSession != null && (
+                                                currentSession.userId == order.userId ||
+                                                (currentSession.phone.isNotBlank() && currentSession.phone.trim() == order.customerPhone.trim())
+                                            )
+                                            if (isCustomerOrder) {
+                                                val statusTitle = when (order.status) {
+                                                    OrderStatus.ORDER_RECEIVED -> "Order Confirmed 📥"
+                                                    OrderStatus.PREPARING_PIZZA -> "Baking in Oven 🧑‍🍳"
+                                                    OrderStatus.READY_FOR_PICKUP -> "Packed & Ready 🍕"
+                                                    OrderStatus.OUT_FOR_DELIVERY -> "Out for Delivery 🛵"
+                                                    OrderStatus.DELIVERED -> "Delivered! Enjoy your meal 🎉"
+                                                    OrderStatus.CANCELLED -> "Order Cancelled ❌"
+                                                }
+                                                val message = "Order #${order.orderId} is now: $statusTitle"
+                                                NotificationHelper.notifyOrderStatusUpdate(context, order.orderId, statusTitle, message)
                                             }
-                                            val message = "Order #${order.orderId} is now: $statusTitle"
-                                            NotificationHelper.notifyOrderStatusUpdate(context, order.orderId, statusTitle, message)
+                                        } catch (e: Exception) {
+                                            Log.e("PizzaRepository", "Error on order modified notification", e)
                                         }
-                                    } catch (e: Exception) {
-                                        Log.e("PizzaRepository", "Error on order modified notification", e)
                                     }
-                                }
-                                DocumentChange.Type.REMOVED -> {
-                                    orderDao.deleteOrder(order.orderId)
+                                    DocumentChange.Type.REMOVED -> {
+                                        orderDao.deleteOrder(order.orderId)
+                                    }
                                 }
                             }
-                        }
-
-                        if (orderEntities.isNotEmpty()) {
-                            orderDao.insertOrders(orderEntities)
+                        } catch (e: Exception) {
+                            Log.e("PizzaRepository", "Error processing Firestore orders snapshot", e)
                         }
                     }
                 }
@@ -161,44 +167,117 @@ class PizzaRepository(
         }
     }
 
+    suspend fun refreshOrdersFromCloud(): List<Order> {
+        return try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val snapshot = com.google.android.gms.tasks.Tasks.await(db.collection("orders").get())
+            val orders = snapshot.documents.mapNotNull { parseOrderFromDoc(it) }
+            if (orders.isNotEmpty()) {
+                val entities = orders.map { OrderEntity.fromDomain(it) }
+                orderDao.insertOrders(entities)
+            }
+            Log.d("PizzaRepository", "Cloud orders refreshed: ${orders.size} orders synced.")
+            orders
+        } catch (e: Exception) {
+            Log.e("PizzaRepository", "Failed to refresh orders from Firestore", e)
+            emptyList()
+        }
+    }
+
     private fun parseOrderFromDoc(doc: DocumentSnapshot): Order? {
         return try {
-            val orderId = doc.getLong("orderId") ?: doc.id.toLongOrNull() ?: return null
-            val userId = doc.getString("userId") ?: "guest_user"
-            val itemsSummary = doc.getString("itemsSummary") ?: ""
-            val itemsCount = doc.getLong("itemsCount")?.toInt() ?: 1
-            val subtotal = doc.getLong("subtotal")?.toInt() ?: 0
-            val discount = doc.getLong("discount")?.toInt() ?: 0
-            val deliveryFee = doc.getLong("deliveryFee")?.toInt() ?: 0
-            val totalAmount = doc.getLong("totalAmount")?.toInt() ?: 0
-            val paymentMethodName = doc.getString("paymentMethodName") ?: "CASH_ON_DELIVERY"
+            val orderId = when (val v = doc.get("orderId")) {
+                is Number -> v.toLong()
+                is String -> v.toLongOrNull()
+                else -> null
+            } ?: doc.id.toLongOrNull() ?: return null
+
+            val userId = doc.getString("userId") ?: doc.get("userId")?.toString() ?: "guest_user"
+            val itemsSummary = doc.getString("itemsSummary") ?: doc.get("itemsSummary")?.toString() ?: ""
+            
+            val itemsCount = when (val v = doc.get("itemsCount")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 1
+                else -> 1
+            }
+            val subtotal = when (val v = doc.get("subtotal")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 0
+                else -> 0
+            }
+            val discount = when (val v = doc.get("discount")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 0
+                else -> 0
+            }
+            val deliveryFee = when (val v = doc.get("deliveryFee")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 0
+                else -> 0
+            }
+            val totalAmount = when (val v = doc.get("totalAmount")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 0
+                else -> (subtotal - discount + deliveryFee).coerceAtLeast(0)
+            }
+            val paymentMethodName = doc.getString("paymentMethodName") ?: doc.get("paymentMethodName")?.toString() ?: "CASH_ON_DELIVERY"
             val paymentMethod = try {
                 PaymentMethod.valueOf(paymentMethodName)
             } catch (e: Exception) {
                 PaymentMethod.CASH_ON_DELIVERY
             }
-            val easypaisaTrxId = doc.getString("easypaisaTrxId")
-            val customerName = doc.getString("customerName") ?: "Customer"
-            val customerPhone = doc.getString("customerPhone") ?: ""
-            val deliveryAddress = doc.getString("deliveryAddress") ?: ""
-            val areaLandmark = doc.getString("areaLandmark") ?: ""
-            val orderNote = doc.getString("orderNote") ?: ""
-            val coinsEarned = doc.getLong("coinsEarned")?.toInt() ?: 0
-            val coinsRedeemed = doc.getLong("coinsRedeemed")?.toInt() ?: 0
-            val statusName = doc.getString("statusName") ?: OrderStatus.ORDER_RECEIVED.name
-            val status = try {
-                OrderStatus.valueOf(statusName)
-            } catch (e: Exception) {
-                OrderStatus.ORDER_RECEIVED
+            val easypaisaTrxId = doc.getString("easypaisaTrxId") ?: doc.get("easypaisaTrxId")?.toString()
+            val customerName = doc.getString("customerName") ?: doc.get("customerName")?.toString() ?: "Customer"
+            val customerPhone = doc.getString("customerPhone") ?: doc.get("customerPhone")?.toString() ?: ""
+            val deliveryAddress = doc.getString("deliveryAddress") ?: doc.get("deliveryAddress")?.toString() ?: ""
+            val areaLandmark = doc.getString("areaLandmark") ?: doc.get("areaLandmark")?.toString() ?: ""
+            val orderNote = doc.getString("orderNote") ?: doc.get("orderNote")?.toString() ?: ""
+            
+            val coinsEarned = when (val v = doc.get("coinsEarned")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 0
+                else -> 0
             }
-            val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
-            val riderId = doc.getString("riderId")
-            val riderName = doc.getString("riderName") ?: "Slice Smile Express Delivery"
-            val riderPhone = doc.getString("riderPhone") ?: "0303-7448255"
-            val riderVehicle = doc.getString("riderVehicle") ?: "Motorcycle"
-            val rating = doc.getLong("rating")?.toInt() ?: 0
-            val reviewComment = doc.getString("reviewComment") ?: ""
-            val feedbackSubmitted = doc.getBoolean("feedbackSubmitted") ?: false
+            val coinsRedeemed = when (val v = doc.get("coinsRedeemed")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 0
+                else -> 0
+            }
+            val statusName = doc.getString("statusName") ?: doc.get("statusName")?.toString() ?: OrderStatus.ORDER_RECEIVED.name
+            val status = when (statusName) {
+                "PLACED", "ORDER_RECEIVED" -> OrderStatus.ORDER_RECEIVED
+                "PREPARING", "PREPARING_PIZZA" -> OrderStatus.PREPARING_PIZZA
+                "READY", "READY_FOR_PICKUP" -> OrderStatus.READY_FOR_PICKUP
+                "OUT_FOR_DELIVERY" -> OrderStatus.OUT_FOR_DELIVERY
+                "DELIVERED" -> OrderStatus.DELIVERED
+                "CANCELLED" -> OrderStatus.CANCELLED
+                else -> try {
+                    OrderStatus.valueOf(statusName)
+                } catch (e: Exception) {
+                    OrderStatus.ORDER_RECEIVED
+                }
+            }
+            val timestamp = when (val v = doc.get("timestamp")) {
+                is Number -> v.toLong()
+                is com.google.firebase.Timestamp -> v.toDate().time
+                is String -> v.toLongOrNull() ?: System.currentTimeMillis()
+                else -> System.currentTimeMillis()
+            }
+            val riderId = doc.getString("riderId") ?: doc.get("riderId")?.toString()
+            val riderName = doc.getString("riderName") ?: doc.get("riderName")?.toString() ?: "Slice Smile Express Delivery"
+            val riderPhone = doc.getString("riderPhone") ?: doc.get("riderPhone")?.toString() ?: "0303-7448255"
+            val riderVehicle = doc.getString("riderVehicle") ?: doc.get("riderVehicle")?.toString() ?: "Motorcycle"
+            val rating = when (val v = doc.get("rating")) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: 0
+                else -> 0
+            }
+            val reviewComment = doc.getString("reviewComment") ?: doc.get("reviewComment")?.toString() ?: ""
+            val feedbackSubmitted = when (val v = doc.get("feedbackSubmitted")) {
+                is Boolean -> v
+                is String -> v.toBoolean()
+                else -> false
+            }
 
             Order(
                 orderId = orderId,

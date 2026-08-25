@@ -45,6 +45,24 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         val db = AppDatabase.getDatabase(application)
         repository = PizzaRepository(application, db)
+        viewModelScope.launch {
+            repository.refreshOrdersFromCloud()
+        }
+    }
+
+    private val _isRefreshingOrders = MutableStateFlow(false)
+    val isRefreshingOrders: StateFlow<Boolean> = _isRefreshingOrders.asStateFlow()
+
+    fun refreshOrdersFromCloud() {
+        viewModelScope.launch {
+            _isRefreshingOrders.value = true
+            try {
+                val orders = repository.refreshOrdersFromCloud()
+                _eventFlow.emit(UiEvent.ShowToast("Live cloud orders synced (${orders.size} total) 🔄"))
+            } finally {
+                _isRefreshingOrders.value = false
+            }
+        }
     }
 
     val ordersList: StateFlow<List<Order>> = repository.allOrders
@@ -660,6 +678,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             repository.setAdminActive(true)
             _isShowingAdminLogin.value = false
             _isShowingRoleSelector.value = false
+            refreshOrdersFromCloud()
             viewModelScope.launch {
                 _eventFlow.emit(UiEvent.ShowToast("Welcome to Owner / Admin Portal 👑"))
             }
