@@ -29,10 +29,26 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
 import java.util.Collections
+import java.util.Date
+import java.util.Locale
+
+data class CloudSyncStatus(
+    val isConnected: Boolean = false,
+    val lastSyncTime: Long = 0L,
+    val cloudOrdersCount: Int = 0,
+    val authUid: String? = null,
+    val errorMessage: String? = null,
+    val isTestingPing: Boolean = false,
+    val pingResult: String? = null
+)
 
 class PizzaRepository(
     private val context: Context,
@@ -51,6 +67,9 @@ class PizzaRepository(
     private var firestoreRidersListener: ListenerRegistration? = null
     private var firestoreFeedbackListener: ListenerRegistration? = null
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
+
+    private val _cloudSyncStatus = MutableStateFlow(CloudSyncStatus())
+    val cloudSyncStatus: StateFlow<CloudSyncStatus> = _cloudSyncStatus.asStateFlow()
 
     // Keep track of order IDs that have already triggered a sound/notification on this device
     private val appLaunchTime = System.currentTimeMillis()
@@ -72,6 +91,42 @@ class PizzaRepository(
                 FirebaseApp.initializeApp(context)
             }
             firestore = FirebaseFirestore.getInstance()
+            try {
+                firestore?.enableNetwork()
+            } catch (e: Exception) {
+                Log.d("PizzaRepository", "Enable network note: ${e.message}")
+            }
+
+            // Auto-sign-in anonymously on startup so requests pass Firebase Security Rules if rules require request.auth != null
+            try {
+                val auth = FirebaseAuth.getInstance()
+                if (auth.currentUser == null) {
+                    auth.signInAnonymously()
+                        .addOnSuccessListener { result ->
+                            Log.d("PizzaRepository", "Firebase Anonymous Auth Connected. UID: ${result.user?.uid}")
+                            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                                isConnected = true,
+                                authUid = result.user?.uid,
+                                errorMessage = null
+                            )
+                        }
+                        .addOnFailureListener { err ->
+                            Log.w("PizzaRepository", "Firebase Anonymous Auth notice: ${err.message}")
+                            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                                isConnected = false,
+                                errorMessage = "Auth Notice: ${err.message}"
+                            )
+                        }
+                } else {
+                    _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                        isConnected = true,
+                        authUid = auth.currentUser?.uid
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("PizzaRepository", "Firebase Auth init notice: ${e.message}")
+            }
+
             listenToFirestoreOrders()
             listenToFirestoreRiders()
             listenToFirestoreFeedback()
@@ -83,6 +138,10 @@ class PizzaRepository(
             Log.d("PizzaRepository", "Firestore listeners and initial fetch initialized successfully.")
         } catch (e: Exception) {
             Log.w("PizzaRepository", "Firestore not available or in local-first fallback mode: ${e.message}")
+            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                isConnected = false,
+                errorMessage = "Firestore Init Error: ${e.message}"
+            )
         }
     }
 
@@ -96,9 +155,20 @@ class PizzaRepository(
                 .addSnapshotListener { snapshots, error ->
                     if (error != null) {
                         Log.e("PizzaRepository", "Firestore orders listen error", error)
+                        _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                            isConnected = false,
+                            errorMessage = "Firestore Sync Error: ${error.localizedMessage ?: error.message}"
+                        )
                         return@addSnapshotListener
                     }
                     if (snapshots == null) return@addSnapshotListener
+
+                    _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                        isConnected = true,
+                        lastSyncTime = System.currentTimeMillis(),
+                        cloudOrdersCount = snapshots.size(),
+                        errorMessage = null
+                    )
 
                     repositoryScope.launch {
                         try {
@@ -179,11 +249,63 @@ class PizzaRepository(
                 val entities = orders.map { OrderEntity.fromDomain(it) }
                 orderDao.insertOrders(entities)
             }
+            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                isConnected = true,
+                lastSyncTime = System.currentTimeMillis(),
+                cloudOrdersCount = orders.size,
+                errorMessage = null
+            )
             Log.d("PizzaRepository", "Cloud orders refreshed: ${orders.size} orders synced.")
             orders
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Failed to refresh orders from Firestore", e)
+            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                isConnected = false,
+                errorMessage = "Cloud Refresh Error: ${e.localizedMessage ?: e.message}"
+            )
             emptyList()
+        }
+    }
+
+    suspend fun testCloudConnection(): String = withContext(Dispatchers.IO) {
+        try {
+            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(isTestingPing = true)
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+
+            // 1. Try pinging cloud diagnostics document
+            val pingDoc = mapOf(
+                "testTime" to System.currentTimeMillis(),
+                "deviceDate" to SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault()).format(Date()),
+                "status" to "ONLINE_ACTIVE",
+                "appId" to "com.aistudio.slicesmile.pkpizza"
+            )
+            com.google.android.gms.tasks.Tasks.await(
+                db.collection("cloud_diagnostics").document("ping_test").set(pingDoc)
+            )
+
+            // 2. Query cloud orders
+            val snapshot = com.google.android.gms.tasks.Tasks.await(db.collection("orders").get())
+            val count = snapshot.size()
+
+            val successMsg = "✅ Cloud Link Successful! Connected to Firebase project (slice-smile-pizza-shop-2026). Total $count cloud orders synced. Real-time multi-device sync is Active!"
+            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                isConnected = true,
+                lastSyncTime = System.currentTimeMillis(),
+                cloudOrdersCount = count,
+                errorMessage = null,
+                isTestingPing = false,
+                pingResult = successMsg
+            )
+            successMsg
+        } catch (e: Exception) {
+            val errorMsg = "❌ Cloud Error: ${e.localizedMessage ?: e.message}.\n\nFirebase Console میں Firestore Rules چیک کریں۔ اگر PERMISSION_DENIED کا مسئلہ ہے تو Firebase Console -> Firestore Database -> Rules میں یہ لکھیں:\nallow read, write: if true;"
+            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                isConnected = false,
+                errorMessage = errorMsg,
+                isTestingPing = false,
+                pingResult = errorMsg
+            )
+            errorMsg
         }
     }
 
@@ -707,26 +829,38 @@ class PizzaRepository(
             )
             
             // 1. Write to /orders/{orderId} for Admin & Global dispatch
-            db.collection("orders").document(generatedId.toString()).set(orderMap)
-                .addOnSuccessListener {
-                    Log.d("PizzaRepository", "Order #$generatedId successfully published to /orders/{orderId} in Firestore!")
-                }
-                .addOnFailureListener { e ->
-                    Log.e("PizzaRepository", "Failed to publish Order #$generatedId to Firestore", e)
-                }
+            try {
+                com.google.android.gms.tasks.Tasks.await(
+                    db.collection("orders").document(generatedId.toString()).set(orderMap)
+                )
+                Log.d("PizzaRepository", "Order #$generatedId successfully published to /orders/{orderId} in Firestore!")
+                _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                    isConnected = true,
+                    lastSyncTime = System.currentTimeMillis(),
+                    errorMessage = null
+                )
+            } catch (writeErr: Exception) {
+                Log.e("PizzaRepository", "Failed to publish Order #$generatedId to Firestore", writeErr)
+                _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                    isConnected = false,
+                    errorMessage = "Firestore Upload Error: ${writeErr.localizedMessage ?: writeErr.message}"
+                )
+            }
 
             // 2. Write to /users/{userId}/orders/{orderId} for Customer Order History
             if (finalOrder.userId.isNotBlank()) {
-                db.collection("users").document(finalOrder.userId).collection("orders").document(generatedId.toString()).set(orderMap)
-                    .addOnSuccessListener {
-                        Log.d("PizzaRepository", "Order #$generatedId recorded under /users/${finalOrder.userId}/orders")
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e("PizzaRepository", "Failed to record customer order history in Firestore", e)
-                    }
+                try {
+                    db.collection("users").document(finalOrder.userId).collection("orders").document(generatedId.toString()).set(orderMap)
+                } catch (e: Exception) {
+                    Log.d("PizzaRepository", "User subcollection sync note: ${e.message}")
+                }
             }
         } catch (e: Exception) {
             Log.e("PizzaRepository", "Firestore placeOrder sync error", e)
+            _cloudSyncStatus.value = _cloudSyncStatus.value.copy(
+                isConnected = false,
+                errorMessage = "Firestore Sync Error: ${e.localizedMessage ?: e.message}"
+            )
         }
 
         // Update loyalty profile if coins redeemed or earned

@@ -149,6 +149,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val easypaisaTrxId by viewModel.easypaisaTrxId.collectAsState()
 
     val ordersList by viewModel.ordersList.collectAsState()
+    val cloudSyncStatus by viewModel.cloudSyncStatus.collectAsState()
     val isRefreshingOrders by viewModel.isRefreshingOrders.collectAsState()
     val customerOrders by viewModel.customerOrders.collectAsState()
     val activeOrdersCount = customerOrders.count { it.status != OrderStatus.DELIVERED }
@@ -453,8 +454,10 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             menuItems = allMenuItems,
                             orders = ordersList,
                             riders = allRiders,
+                            cloudSyncStatus = cloudSyncStatus,
                             isRefreshingOrders = isRefreshingOrders,
                             onRefreshOrders = { viewModel.refreshOrdersFromCloud() },
+                            onTestCloudConnection = { viewModel.testCloudConnection() },
                             onAddNewItem = { viewModel.openAdminEditItem(null) },
                             onEditItem = { item -> viewModel.openAdminEditItem(item) },
                             onDeleteItem = { id -> viewModel.deleteMenuItem(id) },

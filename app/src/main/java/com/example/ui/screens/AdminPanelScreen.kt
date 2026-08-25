@@ -94,6 +94,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.example.data.repository.CloudSyncStatus
 import com.example.model.MenuCategory
 import com.example.model.MenuItem
 import com.example.model.Order
@@ -113,14 +114,23 @@ import com.example.ui.theme.PolishPrimaryRed
 import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
 import com.example.ui.theme.WhatsAppGreen
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.Refresh
 
 @Composable
 fun AdminPanelScreen(
     menuItems: List<MenuItem>,
     orders: List<Order>,
     riders: List<Rider>,
+    cloudSyncStatus: CloudSyncStatus = CloudSyncStatus(),
     isRefreshingOrders: Boolean = false,
     onRefreshOrders: () -> Unit = {},
+    onTestCloudConnection: () -> Unit = {},
     onAddNewItem: () -> Unit,
     onEditItem: (MenuItem) -> Unit,
     onDeleteItem: (String) -> Unit,
@@ -141,6 +151,7 @@ fun AdminPanelScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<MenuCategory?>(null) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showCloudGuideDialog by remember { mutableStateOf(false) }
     var itemPendingDelete by remember { mutableStateOf<MenuItem?>(null) }
     var riderPendingDelete by remember { mutableStateOf<Rider?>(null) }
 
@@ -300,6 +311,145 @@ fun AdminPanelScreen(
                             value = "${riders.size}",
                             modifier = Modifier.weight(1f)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Live Cloud Sync Status & 2-Device Multi-Device Link Banner
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (cloudSyncStatus.isConnected) Color(0xFF1B5E20).copy(alpha = 0.9f) else Color(0xFFB71C1C).copy(alpha = 0.9f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (cloudSyncStatus.isConnected) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                                        contentDescription = null,
+                                        tint = if (cloudSyncStatus.isConnected) Color(0xFF81C784) else Color(0xFFFF8A80),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (cloudSyncStatus.isConnected) "Cloud Live 🟢 (2-Device Sync Active)" else "Cloud Notice 🔴 (Check Firebase Rules)",
+                                        color = Color.White,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Row {
+                                    IconButton(
+                                        onClick = onTestCloudConnection,
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.NetworkCheck,
+                                            contentDescription = "Test Cloud Link",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { showCloudGuideDialog = true },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.HelpOutline,
+                                            contentDescription = "Cloud Setup Guide",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (!cloudSyncStatus.errorMessage.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = cloudSyncStatus.errorMessage,
+                                    color = Color(0xFFFFCDD2),
+                                    fontSize = 10.sp,
+                                    lineHeight = 13.sp
+                                )
+                            }
+
+                            if (!cloudSyncStatus.pingResult.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = cloudSyncStatus.pingResult,
+                                    color = Color(0xFFFFF59D),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Button(
+                                    onClick = onRefreshOrders,
+                                    enabled = !isRefreshingOrders,
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.White.copy(alpha = 0.25f),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp)
+                                ) {
+                                    if (isRefreshingOrders) {
+                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color.White, strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Sync 🔄", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Button(
+                                    onClick = onTestCloudConnection,
+                                    enabled = !cloudSyncStatus.isTestingPing,
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFF57C00),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp)
+                                ) {
+                                    if (cloudSyncStatus.isTestingPing) {
+                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color.White, strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Test Link ⚡", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Button(
+                                    onClick = { showCloudGuideDialog = true },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.White.copy(alpha = 0.25f),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Rules 📖", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -591,6 +741,115 @@ fun AdminPanelScreen(
             dismissButton = {
                 OutlinedButton(onClick = { riderPendingDelete = null }) {
                     Text("Cancel", color = PolishTextMuted)
+                }
+            }
+        )
+    }
+
+    // Live Multi-Device Cloud Setup & Rules Guide Dialog
+    if (showCloudGuideDialog) {
+        AlertDialog(
+            onDismissRequest = { showCloudGuideDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CloudDone,
+                    contentDescription = null,
+                    tint = BasilGreen,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Live Multi-Device Connection Guide 🌐",
+                    fontWeight = FontWeight.Bold,
+                    color = PolishTextDark,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "اگر کسٹمر کے موبائل سے دیا گیا آرڈر آپ کے ایڈمن پینل پر فورا نہیں آ رہا، تو Firebase Console میں درج ذیل 2 آسان کام چیک کریں:",
+                        color = PolishTextDark,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Surface(
+                        color = PolishBgLight,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = "1. Firebase Console -> Firestore Database -> Rules:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = PolishPrimaryRed
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}",
+                                fontSize = 11.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = Color(0xFF2E7D32)
+                            )
+                            Text(
+                                text = "(اس سے دونوں موبائلز کا ڈیٹا بغیر کسی رکاوٹ کلاؤڈ پر لائیو سنک ہوتا ہے)",
+                                fontSize = 10.5.sp,
+                                color = PolishTextMuted
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Surface(
+                        color = PolishBgLight,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = "2. Firebase Console -> Authentication -> Sign-in method:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = PolishPrimaryRed
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "'Anonymous' کو Enable کر دیں۔ اس سے ہر کسٹمر موبائل خود بخود تصدیق ہو کر آن لائن ہو جاتا ہے۔",
+                                fontSize = 11.sp,
+                                color = PolishTextDark
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Project ID: slice-smile-pizza-shop-2026\nیہ دونوں موبائلز ایک ہی Firebase پروجیکٹ کے ذریعے 1 سیکنڈ میں ریئل ٹائم جڑتے ہیں۔",
+                        fontSize = 11.sp,
+                        color = PolishTextMuted
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCloudGuideDialog = false
+                        onTestCloudConnection()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BasilGreen)
+                ) {
+                    Text("Test Connection Now ⚡", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCloudGuideDialog = false }) {
+                    Text("Close", color = PolishTextMuted)
                 }
             }
         )

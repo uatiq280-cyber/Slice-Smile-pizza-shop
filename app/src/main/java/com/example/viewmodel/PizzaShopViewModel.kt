@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.MenuDataSource
 import com.example.data.local.AppDatabase
+import com.example.data.repository.CloudSyncStatus
 import com.example.data.repository.PizzaRepository
 import com.example.model.AuthType
 import com.example.model.CartItem
@@ -61,6 +62,19 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                 _eventFlow.emit(UiEvent.ShowToast("Live cloud orders synced (${orders.size} total) 🔄"))
             } finally {
                 _isRefreshingOrders.value = false
+            }
+        }
+    }
+
+    val cloudSyncStatus: StateFlow<CloudSyncStatus> = repository.cloudSyncStatus
+
+    fun testCloudConnection() {
+        viewModelScope.launch {
+            val result = repository.testCloudConnection()
+            if (result.startsWith("✅")) {
+                _eventFlow.emit(UiEvent.ShowToast("Cloud Connection OK! Live 2-device sync is ready ✅"))
+            } else {
+                _eventFlow.emit(UiEvent.ShowToast("Cloud Warning! Please verify Firebase Rules ⚠️"))
             }
         }
     }
