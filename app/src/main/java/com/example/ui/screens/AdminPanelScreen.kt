@@ -22,7 +22,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
@@ -39,6 +43,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
@@ -54,11 +59,13 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -83,6 +90,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import com.example.model.MenuCategory
 import com.example.model.MenuItem
 import com.example.model.Order
@@ -331,11 +342,12 @@ fun AdminPanelScreen(
                 }
             }
 
-            // 2. Navigation Tabs
-            TabRow(
+            // 2. Navigation Tabs (Dashboard, Orders, Menu Rates, Riders)
+            ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.White,
                 contentColor = PolishPrimaryRed,
+                edgePadding = 12.dp,
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
                         modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
@@ -349,7 +361,7 @@ fun AdminPanelScreen(
                     onClick = { selectedTab = 0 },
                     text = {
                         Text(
-                            "Orders (${orders.size})",
+                            "📊 Dashboard",
                             fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
                             color = if (selectedTab == 0) PolishPrimaryRed else PolishTextMuted
                         )
@@ -360,7 +372,7 @@ fun AdminPanelScreen(
                     onClick = { selectedTab = 1 },
                     text = {
                         Text(
-                            "Menu Rates (${menuItems.size})",
+                            "🔔 Orders (${orders.size})",
                             fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
                             color = if (selectedTab == 1) PolishPrimaryRed else PolishTextMuted
                         )
@@ -371,9 +383,20 @@ fun AdminPanelScreen(
                     onClick = { selectedTab = 2 },
                     text = {
                         Text(
-                            "Riders (${riders.size})",
+                            "🍕 Menu Rates (${menuItems.size})",
                             fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
                             color = if (selectedTab == 2) PolishPrimaryRed else PolishTextMuted
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = {
+                        Text(
+                            "🛵 Riders (${riders.size})",
+                            fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 3) PolishPrimaryRed else PolishTextMuted
                         )
                     }
                 )
@@ -382,6 +405,15 @@ fun AdminPanelScreen(
             // 3. Tab Contents
             when (selectedTab) {
                 0 -> {
+                    // Analytics & Income Dashboard Tab
+                    AdminAnalyticsDashboard(
+                        orders = orders,
+                        menuItems = menuItems,
+                        isRefreshing = isRefreshingOrders,
+                        onRefreshClick = onRefreshOrders
+                    )
+                }
+                1 -> {
                     // Orders Management Tab
                     AdminOrdersList(
                         orders = orders,
@@ -391,7 +423,7 @@ fun AdminPanelScreen(
                         onAssignRiderClick = onAssignRiderClick
                     )
                 }
-                1 -> {
+                2 -> {
                     // Menu Management Tab
                     AdminMenuList(
                         menuItems = filteredItems,
@@ -407,7 +439,7 @@ fun AdminPanelScreen(
                         onResetConfirm = { showResetConfirmDialog = true }
                     )
                 }
-                2 -> {
+                3 -> {
                     // Riders Fleet Tab
                     AdminRidersList(
                         riders = riders,
@@ -1653,6 +1685,623 @@ fun AdminItemManagementCard(
                     Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(16.dp))
                 }
             }
+        }
+    }
+}
+
+// ================= ADMIN ANALYTICS & INCOME DASHBOARD =================
+data class IncomeHistoryRecord(
+    val title: String,
+    val orderCount: Int,
+    val totalIncome: Int
+)
+
+@Composable
+fun AdminAnalyticsDashboard(
+    orders: List<Order>,
+    menuItems: List<MenuItem>,
+    isRefreshing: Boolean,
+    onRefreshClick: () -> Unit
+) {
+    var selectedBreakdownTab by remember { mutableIntStateOf(0) } // 0: Daily, 1: Monthly, 2: Yearly, 3: Payment & Items
+
+    // Calculate Dates and Calendars
+    val todayCal = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val startOfToday = todayCal.timeInMillis
+
+    val monthCal = Calendar.getInstance().apply {
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val startOfMonth = monthCal.timeInMillis
+
+    val yearCal = Calendar.getInstance().apply {
+        set(Calendar.DAY_OF_YEAR, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val startOfYear = yearCal.timeInMillis
+
+    // Filter valid orders (Delivered or active in pipeline - excludes cancelled for income)
+    val validIncomeOrders = orders.filter { it.status != OrderStatus.CANCELLED }
+
+    val todayOrders = validIncomeOrders.filter { it.timestamp >= startOfToday }
+    val todayIncome = todayOrders.sumOf { it.totalAmount }
+    val todayCount = todayOrders.size
+
+    val monthOrders = validIncomeOrders.filter { it.timestamp >= startOfMonth }
+    val monthIncome = monthOrders.sumOf { it.totalAmount }
+    val monthCount = monthOrders.size
+
+    val yearOrders = validIncomeOrders.filter { it.timestamp >= startOfYear }
+    val yearIncome = yearOrders.sumOf { it.totalAmount }
+    val yearCount = yearOrders.size
+
+    val totalLifetimeIncome = validIncomeOrders.sumOf { it.totalAmount }
+    val totalLifetimeCount = validIncomeOrders.size
+    val aov = if (totalLifetimeCount > 0) totalLifetimeIncome / totalLifetimeCount else 0
+
+    // Payment Methods
+    val codOrders = validIncomeOrders.filter { it.paymentMethod == PaymentMethod.CASH_ON_DELIVERY }
+    val codIncome = codOrders.sumOf { it.totalAmount }
+
+    val easypaisaOrders = validIncomeOrders.filter { it.paymentMethod == PaymentMethod.EASYPAISA }
+    val easypaisaIncome = easypaisaOrders.sumOf { it.totalAmount }
+
+    // Date Formatters
+    val daySdf = SimpleDateFormat("dd MMM yyyy (EEE)", Locale.getDefault())
+    val monthSdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+    val yearSdf = SimpleDateFormat("yyyy", Locale.getDefault())
+
+    // Grouping for Historical Lists
+    val dailyBreakdown: List<IncomeHistoryRecord> = validIncomeOrders
+        .groupBy { daySdf.format(Date(it.timestamp)) }
+        .map { (dayStr, dayOrdersList) ->
+            IncomeHistoryRecord(
+                title = dayStr,
+                orderCount = dayOrdersList.size,
+                totalIncome = dayOrdersList.sumOf { it.totalAmount }
+            )
+        }
+
+    val monthlyBreakdown: List<IncomeHistoryRecord> = validIncomeOrders
+        .groupBy { monthSdf.format(Date(it.timestamp)) }
+        .map { (monthStr, monthOrdersList) ->
+            IncomeHistoryRecord(
+                title = monthStr,
+                orderCount = monthOrdersList.size,
+                totalIncome = monthOrdersList.sumOf { it.totalAmount }
+            )
+        }
+
+    val yearlyBreakdown: List<IncomeHistoryRecord> = validIncomeOrders
+        .groupBy { yearSdf.format(Date(it.timestamp)) }
+        .map { (yearStr, yearOrdersList) ->
+            IncomeHistoryRecord(
+                title = "Year $yearStr",
+                orderCount = yearOrdersList.size,
+                totalIncome = yearOrdersList.sumOf { it.totalAmount }
+            )
+        }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(PolishBgLight),
+        contentPadding = PaddingValues(bottom = 80.dp)
+    ) {
+        // 1. Dashboard Header & Live Refresh
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Business Revenue Dashboard 📊",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Black,
+                            color = PolishTextDark,
+                            fontSize = 19.sp
+                        )
+                    )
+                    Text(
+                        text = "آمدنی، ڈیلی، ماہانہ اور سالانہ آرڈرز کا مکمل ریکارڈ",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = PolishTextMuted,
+                            fontSize = 11.5.sp
+                        )
+                    )
+                }
+
+                IconButton(
+                    onClick = onRefreshClick,
+                    modifier = Modifier.background(Color.White, CircleShape)
+                ) {
+                    if (isRefreshing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = PolishPrimaryRed, strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PolishPrimaryRed)
+                    }
+                }
+            }
+        }
+
+        // 2. Primary 4-Grid Income KPI Cards
+        item {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Today Income Card
+                    DashboardKpiCard(
+                        title = "Today's Income 📅",
+                        subtitle = "آج کی آمدنی",
+                        amount = "Rs. $todayIncome",
+                        orderCount = "$todayCount Orders",
+                        bgGradient = listOf(Color(0xFF2E7D32), Color(0xFF1B5E20)),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Monthly Income Card
+                    DashboardKpiCard(
+                        title = "This Month 📆",
+                        subtitle = "ماہانہ آمدنی",
+                        amount = "Rs. $monthIncome",
+                        orderCount = "$monthCount Orders",
+                        bgGradient = listOf(Color(0xFFE65100), Color(0xFFBF360C)),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Yearly Income Card
+                    DashboardKpiCard(
+                        title = "This Year 🗓️",
+                        subtitle = "سالانہ آمدنی",
+                        amount = "Rs. $yearIncome",
+                        orderCount = "$yearCount Orders",
+                        bgGradient = listOf(Color(0xFF6A1B9A), Color(0xFF4A148C)),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Total Lifetime Income Card
+                    DashboardKpiCard(
+                        title = "Total Lifetime 💰",
+                        subtitle = "کل ریکارڈ آمدنی",
+                        amount = "Rs. $totalLifetimeIncome",
+                        orderCount = "$totalLifetimeCount Total",
+                        bgGradient = listOf(PolishPrimaryRed, PolishMaroonDark),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // 3. Quick Performance Highlights Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Avg Order Value",
+                            style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted, fontSize = 11.sp)
+                        )
+                        Text(
+                            text = "Rs. $aov",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = PolishTextDark)
+                        )
+                    }
+
+                    Box(modifier = Modifier.width(1.dp).height(30.dp).background(PolishBorder))
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Completed Rate",
+                            style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted, fontSize = 11.sp)
+                        )
+                        val completedCount = orders.count { it.status == OrderStatus.DELIVERED }
+                        val rate = if (orders.isNotEmpty()) (completedCount * 100) / orders.size else 100
+                        Text(
+                            text = "$rate%",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                        )
+                    }
+
+                    Box(modifier = Modifier.width(1.dp).height(30.dp).background(PolishBorder))
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Menu Items Active",
+                            style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted, fontSize = 11.sp)
+                        )
+                        Text(
+                            text = "${menuItems.count { it.isAvailable }}/${menuItems.size}",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = PolishTextDark)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. Breakdown Filter Chips (Daily / Monthly / Yearly / Payments)
+        item {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Text(
+                    text = "Income & Order History Breakdown:",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = selectedBreakdownTab == 0,
+                        onClick = { selectedBreakdownTab = 0 },
+                        label = { Text("Daily (روزانہ)", fontSize = 11.5.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PolishPrimaryRed,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = selectedBreakdownTab == 1,
+                        onClick = { selectedBreakdownTab = 1 },
+                        label = { Text("Monthly (ماہانہ)", fontSize = 11.5.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PolishPrimaryRed,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = selectedBreakdownTab == 2,
+                        onClick = { selectedBreakdownTab = 2 },
+                        label = { Text("Yearly (سالانہ)", fontSize = 11.5.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PolishPrimaryRed,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = selectedBreakdownTab == 3,
+                        onClick = { selectedBreakdownTab = 3 },
+                        label = { Text("Payments", fontSize = 11.5.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PolishPrimaryRed,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        // 5. Selected Breakdown Content
+        when (selectedBreakdownTab) {
+            0 -> {
+                // DAILY BREAKDOWN
+                if (dailyBreakdown.isEmpty()) {
+                    item {
+                        EmptyDashboardRecordsCard("No daily orders recorded yet.")
+                    }
+                } else {
+                    items(dailyBreakdown) { record ->
+                        HistoryRecordRow(
+                            title = record.title,
+                            badge = "${record.orderCount} Orders",
+                            income = "Rs. ${record.totalIncome}",
+                            icon = Icons.Default.CalendarToday,
+                            accentColor = Color(0xFF2E7D32)
+                        )
+                    }
+                }
+            }
+            1 -> {
+                // MONTHLY BREAKDOWN
+                if (monthlyBreakdown.isEmpty()) {
+                    item {
+                        EmptyDashboardRecordsCard("No monthly order records yet.")
+                    }
+                } else {
+                    items(monthlyBreakdown) { record ->
+                        HistoryRecordRow(
+                            title = record.title,
+                            badge = "${record.orderCount} Orders",
+                            income = "Rs. ${record.totalIncome}",
+                            icon = Icons.Default.Assessment,
+                            accentColor = Color(0xFFE65100)
+                        )
+                    }
+                }
+            }
+            2 -> {
+                // YEARLY BREAKDOWN
+                if (yearlyBreakdown.isEmpty()) {
+                    item {
+                        EmptyDashboardRecordsCard("No yearly records yet.")
+                    }
+                } else {
+                    items(yearlyBreakdown) { record ->
+                        HistoryRecordRow(
+                            title = record.title,
+                            badge = "${record.orderCount} Total Orders",
+                            income = "Rs. ${record.totalIncome}",
+                            icon = Icons.Default.TrendingUp,
+                            accentColor = Color(0xFF6A1B9A)
+                        )
+                    }
+                }
+            }
+            3 -> {
+                // PAYMENT METHOD BREAKDOWN
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "Payment Methods Breakdown 💳",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                val codFraction = if (totalLifetimeIncome > 0) codIncome.toFloat() / totalLifetimeIncome.toFloat() else 0f
+                                PaymentProgressRow(
+                                    label = "Cash on Delivery (کیش آن ڈیلیوری)",
+                                    amount = "Rs. $codIncome",
+                                    count = "${codOrders.size} orders",
+                                    fraction = codFraction,
+                                    barColor = Color(0xFF2E7D32)
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                val epFraction = if (totalLifetimeIncome > 0) easypaisaIncome.toFloat() / totalLifetimeIncome.toFloat() else 0f
+                                PaymentProgressRow(
+                                    label = "Easypaisa / JazzCash",
+                                    amount = "Rs. $easypaisaIncome",
+                                    count = "${easypaisaOrders.size} orders",
+                                    fraction = epFraction,
+                                    barColor = Color(0xFF00897B)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardKpiCard(
+    title: String,
+    subtitle: String,
+    amount: String,
+    orderCount: String,
+    bgGradient: List<Color>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = bgGradient.first())
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(bgGradient),
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .padding(14.dp)
+        ) {
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 10.sp
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = amount,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White.copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = orderCount,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryRecordRow(
+    title: String,
+    badge: String,
+    income: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accentColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(accentColor.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = PolishTextDark,
+                            fontSize = 13.5.sp
+                        )
+                    )
+                    Text(
+                        text = badge,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = PolishTextMuted,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+
+            Text(
+                text = income,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    color = accentColor,
+                    fontSize = 15.sp
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun PaymentProgressRow(
+    label: String,
+    amount: String,
+    count: String,
+    fraction: Float,
+    barColor: Color
+) {
+    val cleanFraction = if (fraction.isNaN() || fraction < 0f) 0f else if (fraction > 1f) 1f else fraction
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
+            )
+            Text(
+                text = "$amount ($count)",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = barColor)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { cleanFraction },
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+            color = barColor,
+            trackColor = PolishBgLight
+        )
+    }
+}
+
+@Composable
+private fun EmptyDashboardRecordsCard(message: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "📊 $message",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = PolishTextMuted,
+                    fontWeight = FontWeight.Medium
+                )
+            )
         }
     }
 }

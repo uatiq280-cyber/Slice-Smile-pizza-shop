@@ -30,7 +30,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Firebase Cloud Messaging Service -->
+        <!-- Firebase Cloud Messaging Service & Configuration -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+
         <service
             android:name=".service.PizzaFirebaseMessagingService"
             android:exported="false">

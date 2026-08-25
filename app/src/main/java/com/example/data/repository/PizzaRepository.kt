@@ -20,6 +20,7 @@ import com.example.model.Rider
 import com.example.model.UserSession
 import com.example.service.NotificationHelper
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -30,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Collections
 
 class PizzaRepository(
@@ -73,9 +75,10 @@ class PizzaRepository(
             listenToFirestoreOrders()
             listenToFirestoreRiders()
             listenToFirestoreFeedback()
-            // Initial fetch to load existing cloud orders immediately
+            // Initial fetch to load existing cloud orders and admin credentials immediately
             repositoryScope.launch {
                 refreshOrdersFromCloud()
+                syncAdminCredentialsFromCloud()
             }
             Log.d("PizzaRepository", "Firestore listeners and initial fetch initialized successfully.")
         } catch (e: Exception) {
@@ -167,8 +170,8 @@ class PizzaRepository(
         }
     }
 
-    suspend fun refreshOrdersFromCloud(): List<Order> {
-        return try {
+    suspend fun refreshOrdersFromCloud(): List<Order> = withContext(Dispatchers.IO) {
+        try {
             val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
             val snapshot = com.google.android.gms.tasks.Tasks.await(db.collection("orders").get())
             val orders = snapshot.documents.mapNotNull { parseOrderFromDoc(it) }
@@ -460,13 +463,90 @@ class PizzaRepository(
         return adminDao.getConfig("owner_id") ?: "Owner@slicesmile.com"
     }
 
-    suspend fun updateAdminPin(newPin: String) {
-        adminDao.setConfig(AdminConfigEntity(key = "admin_pin", value = newPin))
+    suspend fun syncAdminCredentialsFromCloud() = withContext(Dispatchers.IO) {
+        try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val doc = com.google.android.gms.tasks.Tasks.await(db.collection("admin_config").document("credentials").get())
+            if (doc != null && doc.exists()) {
+                val cloudOwnerId = doc.getString("ownerId")
+                val cloudPassword = doc.getString("password")
+                if (!cloudOwnerId.isNullOrBlank()) {
+                    adminDao.setConfig(AdminConfigEntity(key = "owner_id", value = cloudOwnerId))
+                }
+                if (!cloudPassword.isNullOrBlank()) {
+                    adminDao.setConfig(AdminConfigEntity(key = "admin_pin", value = cloudPassword))
+                }
+                Log.d("PizzaRepository", "Admin credentials synced from Cloud Firestore: $cloudOwnerId")
+            }
+        } catch (e: Exception) {
+            Log.d("PizzaRepository", "Notice: Admin config cloud sync: ${e.message}")
+        }
     }
 
-    suspend fun updateOwnerCredentials(ownerId: String, newPin: String) {
-        adminDao.setConfig(AdminConfigEntity(key = "owner_id", value = ownerId))
-        adminDao.setConfig(AdminConfigEntity(key = "admin_pin", value = newPin))
+    suspend fun updateAdminPin(newPin: String) {
+        val currentOwnerId = getOwnerId()
+        updateOwnerCredentials(currentOwnerId, newPin)
+    }
+
+    suspend fun updateOwnerCredentials(ownerId: String, newPin: String) = withContext(Dispatchers.IO) {
+        val cleanOwnerId = ownerId.trim()
+        val cleanPin = newPin.trim()
+
+        // 1. Save to local Room Database
+        adminDao.setConfig(AdminConfigEntity(key = "owner_id", value = cleanOwnerId))
+        adminDao.setConfig(AdminConfigEntity(key = "admin_pin", value = cleanPin))
+
+        // 2. Sync to Firestore admin_config/credentials document
+        try {
+            val db = firestore ?: FirebaseFirestore.getInstance().also { firestore = it }
+            val credMap = hashMapOf(
+                "ownerId" to cleanOwnerId,
+                "password" to cleanPin,
+                "lastUpdated" to System.currentTimeMillis(),
+                "updatedBy" to "AdminAppClient",
+                "authType" to "FIREBASE_AUTH_SYNCED"
+            )
+            db.collection("admin_config").document("credentials").set(credMap)
+                .addOnSuccessListener {
+                    Log.d("PizzaRepository", "Admin credentials updated in Firestore successfully!")
+                }
+                .addOnFailureListener { e ->
+                    Log.w("PizzaRepository", "Failed to update admin credentials in Firestore", e)
+                }
+        } catch (e: Exception) {
+            Log.e("PizzaRepository", "Error syncing admin credentials to Firestore", e)
+        }
+
+        // 3. Update or Create in Firebase Auth
+        try {
+            val auth = FirebaseAuth.getInstance()
+            val emailForAuth = if (cleanOwnerId.contains("@")) cleanOwnerId else "$cleanOwnerId@slicesmile.com"
+            val currentUser = auth.currentUser
+
+            if (currentUser != null && currentUser.email.equals(emailForAuth, ignoreCase = true)) {
+                currentUser.updatePassword(cleanPin).addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        Log.d("PizzaRepository", "Firebase Auth password updated successfully for $emailForAuth")
+                    } else {
+                        Log.w("PizzaRepository", "Firebase Auth password update failed: ${task.exception?.message}")
+                    }
+                }
+            } else {
+                // Try signing in and updating, or create admin user if doesn't exist
+                auth.signInWithEmailAndPassword(emailForAuth, cleanPin)
+                    .addOnFailureListener {
+                        auth.createUserWithEmailAndPassword(emailForAuth, cleanPin)
+                            .addOnSuccessListener {
+                                Log.d("PizzaRepository", "Firebase Auth created new Admin user: $emailForAuth")
+                            }
+                            .addOnFailureListener { err ->
+                                Log.d("PizzaRepository", "Firebase Auth Notice: ${err.message}")
+                            }
+                    }
+            }
+        } catch (e: Exception) {
+            Log.d("PizzaRepository", "Firebase Auth update notice: ${e.message}")
+        }
     }
 
     // ================= RIDER MANAGEMENT =================

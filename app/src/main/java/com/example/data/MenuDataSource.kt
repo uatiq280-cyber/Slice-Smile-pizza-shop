@@ -568,11 +568,131 @@ object MenuDataSource {
             isSpicy = true
         ),
 
-        // === COLD DRINKS & SODA ===
+        // === FRESH JUICES ===
+        MenuItem(
+            id = "juice_fresh_orange",
+            name = "Fresh Seasonal Orange / Mosambi Juice",
+            category = MenuCategory.JUICES,
+            description = "100% pure freshly extracted citrus orange/mosambi juice with black salt & ice.",
+            basePrice = 250,
+            isPopular = true,
+            tag = "Pure & Fresh"
+        ),
+        MenuItem(
+            id = "juice_fresh_apple",
+            name = "Fresh Red Apple Juice",
+            category = MenuCategory.JUICES,
+            description = "Freshly cold-pressed crisp red apples with a hint of lemon and mint.",
+            basePrice = 280,
+            tag = "Healthy Choice"
+        ),
+        MenuItem(
+            id = "juice_fresh_pomegranate",
+            name = "Special Pure Pomegranate (Kandhari Anar) Juice",
+            category = MenuCategory.JUICES,
+            description = "Premium ruby red fresh pomegranate juice, antioxidant rich & rejuvenating.",
+            basePrice = 350,
+            isPopular = true,
+            tag = "Premium"
+        ),
+        MenuItem(
+            id = "juice_fresh_cocktail",
+            name = "Slice Smile Special Fruit Cocktail Juice",
+            category = MenuCategory.JUICES,
+            description = "Layered multi-fruit powerhouse blending fresh seasonal fruits with crushed ice.",
+            basePrice = 320,
+            isPopular = true,
+            tag = "Chef Special"
+        ),
+        MenuItem(
+            id = "juice_fresh_peach",
+            name = "Fresh Pulpy Peach Juice",
+            category = MenuCategory.JUICES,
+            description = "Sweet pulpy seasonal fresh peaches blended to refreshing perfection.",
+            basePrice = 260
+        ),
+        MenuItem(
+            id = "juice_mint_lemonade",
+            name = "Fresh Mint Margarita & Lemonade",
+            category = MenuCategory.JUICES,
+            description = "Freshly crushed garden mint leaves, fresh lemon juice, Himalayan black salt & soda.",
+            basePrice = 220,
+            isPopular = true,
+            tag = "Most Popular"
+        ),
+
+        // === MILKSHAKES ===
+        MenuItem(
+            id = "shake_mango_thick",
+            name = "Mango Royal Thick Milkshake",
+            category = MenuCategory.MILKSHAKES,
+            description = "Rich creamy Chaunsa/Alphonso mango pulp blended with rich fresh milk and vanilla ice-cream scoop.",
+            basePrice = 280,
+            isPopular = true,
+            tag = "Thick Shake"
+        ),
+        MenuItem(
+            id = "shake_oreo_chocolate",
+            name = "Oreo Chocolate Crunch Shake",
+            category = MenuCategory.MILKSHAKES,
+            description = "Crushed Oreo cookies, rich Belgian chocolate drizzle, dairy ice cream and chilled milk.",
+            basePrice = 320,
+            isPopular = true,
+            tag = "Bestseller"
+        ),
+        MenuItem(
+            id = "shake_kitkat_crunch",
+            name = "KitKat Chunky Chocolate Milkshake",
+            category = MenuCategory.MILKSHAKES,
+            description = "Crispy KitKat wafer bars blended with chocolate ice cream and rich creamy milk.",
+            basePrice = 350,
+            isPopular = true,
+            tag = "Special"
+        ),
+        MenuItem(
+            id = "shake_banana_dates",
+            name = "Khajoor Badam (Dates & Almond) Energy Shake",
+            category = MenuCategory.MILKSHAKES,
+            description = "Premium Arabian sweet dates (khajoor), roasted almonds, fresh bananas, honey and fresh milk.",
+            basePrice = 320,
+            tag = "Energy Booster"
+        ),
+        MenuItem(
+            id = "shake_strawberry",
+            name = "Fresh Strawberry Cream Milkshake",
+            category = MenuCategory.MILKSHAKES,
+            description = "Sweet farm-fresh strawberries blended smooth with ice cream and fresh milk.",
+            basePrice = 290
+        ),
+        MenuItem(
+            id = "shake_vanilla_creamy",
+            name = "Classic French Vanilla Milkshake",
+            category = MenuCategory.MILKSHAKES,
+            description = "Smooth rich vanilla bean ice cream blended with chilled farm milk.",
+            basePrice = 260
+        ),
+        MenuItem(
+            id = "shake_nutella_hazelnut",
+            name = "Nutella Hazelnut Supreme Shake",
+            category = MenuCategory.MILKSHAKES,
+            description = "Decadent Nutella spread, roasted hazelnuts, chocolate sauce and rich ice cream.",
+            basePrice = 380,
+            tag = "Premium Luxury"
+        ),
+        MenuItem(
+            id = "shake_doodh_soda",
+            name = "Special Rooh Afza Doodh Soda",
+            category = MenuCategory.MILKSHAKES,
+            description = "Classic chilled Pakistani refreshing blend of fresh milk, 7Up/soda and Rooh Afza rose syrup.",
+            basePrice = 190,
+            isPopular = true
+        ),
+
+        // === BEVERAGES & COLD DRINKS ===
         MenuItem(
             id = "drink_soft_regular",
             name = "Gourmet Soft Drink (500ml)",
-            category = MenuCategory.COLD_DRINKS,
+            category = MenuCategory.BEVERAGES,
             description = "Chilled 500ml Bottle (Coke, Sprite, Fanta, Dew, Sting Berry).",
             basePrice = 100,
             isPopular = true
@@ -580,14 +700,14 @@ object MenuDataSource {
         MenuItem(
             id = "drink_soft_1litre",
             name = "Soft Drink (1 Litre)",
-            category = MenuCategory.COLD_DRINKS,
+            category = MenuCategory.BEVERAGES,
             description = "Chilled 1.0 Litre Family Bottle (Coke / Sprite / Fanta / Dew).",
             basePrice = 180
         ),
         MenuItem(
             id = "drink_soft_1_5litre",
             name = "Soft Drink (1.5 Litre)",
-            category = MenuCategory.COLD_DRINKS,
+            category = MenuCategory.BEVERAGES,
             description = "Chilled 1.5 Litre Big Party Bottle (Coke / Sprite / Dew).",
             basePrice = 240,
             isPopular = true
@@ -595,14 +715,21 @@ object MenuDataSource {
         MenuItem(
             id = "drink_soft_jumbo",
             name = "Soft Drink Jumbo (2.25 Litre)",
-            category = MenuCategory.COLD_DRINKS,
-            description = "Mega 2.25 Litre Jumbo Party Bottle for gatherings.",
+            category = MenuCategory.BEVERAGES,
+            description = "Mega 2.25 Litre Jumbo Party Bottle for family gatherings.",
             basePrice = 300
         ),
         MenuItem(
+            id = "drink_sting_berry",
+            name = "Sting Energy Berry Drink (300ml)",
+            category = MenuCategory.BEVERAGES,
+            description = "Refreshing chilled energy booster.",
+            basePrice = 120
+        ),
+        MenuItem(
             id = "drink_mineral_water",
-            name = "Nestle Mineral Water",
-            category = MenuCategory.COLD_DRINKS,
+            name = "Nestle Pure Life Mineral Water",
+            category = MenuCategory.BEVERAGES,
             description = "Pure & refreshing chilled mineral water bottle.",
             basePrice = 60,
             sizeOptions = listOf(
@@ -611,62 +738,12 @@ object MenuDataSource {
             )
         ),
         MenuItem(
-            id = "drink_mint_margarita",
-            name = "Fresh Mint Margarita / Lemonade",
-            category = MenuCategory.COLD_DRINKS,
-            description = "Freshly blended fresh mint leaves, lemon juice, black salt, crushed ice and 7Up.",
-            basePrice = 220,
-            isPopular = true,
-            tag = "Refreshing"
-        ),
-
-        // === JUICES & MILKSHAKES ===
-        MenuItem(
-            id = "shake_mango",
-            name = "Mango Thick Shake",
-            category = MenuCategory.JUICES_SHAKES,
-            description = "Rich creamy Alphonso mango pulp blended with rich fresh milk and vanilla ice-cream scoop.",
-            basePrice = 280,
-            isPopular = true,
-            tag = "Thick Shake"
-        ),
-        MenuItem(
-            id = "shake_banana_dates",
-            name = "Khajoor Banana Milkshake (Special)",
-            category = MenuCategory.JUICES_SHAKES,
-            description = "Healthy natural energy shake packed with sweet dates (khajoor), fresh bananas, almonds and milk.",
-            basePrice = 270,
-            tag = "Energy Booster"
-        ),
-        MenuItem(
-            id = "shake_oreo_chocolate",
-            name = "Oreo Chocolate Crunch Shake",
-            category = MenuCategory.JUICES_SHAKES,
-            description = "Crushed Oreo cookies, rich Belgian chocolate syrup, ice cream and chilled milk with whipped topping.",
-            basePrice = 320,
-            isPopular = true,
-            tag = "Kids Favorite"
-        ),
-        MenuItem(
-            id = "shake_strawberry",
-            name = "Fresh Strawberry Milkshake",
-            category = MenuCategory.JUICES_SHAKES,
-            description = "Sweet farm strawberries blended smooth with fresh milk and ice cream.",
-            basePrice = 290
-        ),
-        MenuItem(
-            id = "juice_fresh_seasonal",
-            name = "Fresh Seasonal Fruit Juice",
-            category = MenuCategory.JUICES_SHAKES,
-            description = "100% pure fresh squeezed juice (Apple, Orange, Mosambi, or Peach) with no added sugar.",
-            basePrice = 260
-        ),
-        MenuItem(
-            id = "shake_doodh_soda",
-            name = "Special Rooh Afza Doodh Soda",
-            category = MenuCategory.JUICES_SHAKES,
-            description = "Classic chilled refreshing blend of fresh milk, Pakola/7Up soda and Rooh Afza rose syrup.",
-            basePrice = 190
+            id = "drink_iced_coffee",
+            name = "Chilled Iced Coffee & Cold Mocha",
+            category = MenuCategory.BEVERAGES,
+            description = "Espresso shot blended with chilled milk, dark chocolate syrup and ice cubes.",
+            basePrice = 300,
+            tag = "Cold Brew"
         )
     )
 

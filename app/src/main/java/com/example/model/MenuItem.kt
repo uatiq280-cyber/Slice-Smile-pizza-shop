@@ -13,6 +13,9 @@ enum class MenuCategory(val displayName: String, val iconResName: String) {
     WINGS_FRIES("Wings & Fries", "fastfood"),
     PASTA("Pasta", "dinner_dining"),
     CHINESE("Chinese", "ramen_dining"),
+    JUICES("Fresh Juices 🧃", "local_bar"),
+    MILKSHAKES("Milkshakes 🥤", "blender"),
+    BEVERAGES("Beverages 🍹", "local_drink"),
     COLD_DRINKS("Cold Drinks", "local_drink"),
     JUICES_SHAKES("Juices & Shakes", "blender"),
     WRAP("Wraps & Rolls", "takeout_dining")

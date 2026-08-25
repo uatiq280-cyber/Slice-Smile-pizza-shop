@@ -138,11 +138,11 @@ fun AdminLoginDialog(
                         ownerIdText = it
                         errorMessage = null
                     },
-                    label = { Text("Owner ID / Username") },
-                    placeholder = { Text("Enter Owner Username") },
+                    label = { Text("Owner ID / Email") },
+                    placeholder = { Text("Enter ID / Email") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
+                        keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
                     ),
                     leadingIcon = {
@@ -172,7 +172,7 @@ fun AdminLoginDialog(
                         pinText = it
                         errorMessage = null
                     },
-                    label = { Text("Owner Password / Security PIN") },
+                    label = { Text("Password") },
                     placeholder = { Text("Enter Password") },
                     singleLine = true,
                     visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -207,7 +207,7 @@ fun AdminLoginDialog(
                             )
                         } else {
                             Text(
-                                text = "Authorized personnel only • Secure authentication",
+                                text = "Restricted Area • Authorized personnel only",
                                 color = PolishTextMuted,
                                 fontSize = 11.sp
                             )

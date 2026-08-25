@@ -37,21 +37,23 @@ class SliceSmileApp : Application() {
             Log.w("SliceSmileApp", "FirebaseApp init notice: ${e.message}")
         }
 
-        // 3. Setup Firebase Cloud Messaging (FCM) Topics
+        // 3. Setup Firebase Cloud Messaging (FCM) Topics (Only if Google Play Services is available)
         try {
-            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val token = task.result
-                    Log.d("SliceSmileApp", "FCM Device Token: $token")
-                }
+            val playServicesAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
+                .isGooglePlayServicesAvailable(this)
+            if (playServicesAvailability == com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                FirebaseMessaging.getInstance().token
+                    .addOnSuccessListener { token ->
+                        Log.d("SliceSmileApp", "FCM Device Token: $token")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.d("SliceSmileApp", "FCM Token notice: ${e.message}")
+                    }
+            } else {
+                Log.d("SliceSmileApp", "Google Play Services not available, using Firestore real-time listener.")
             }
-
-            // Subscribe to order notification topics
-            FirebaseMessaging.getInstance().subscribeToTopic("all_orders")
-            FirebaseMessaging.getInstance().subscribeToTopic("owner_orders")
-            FirebaseMessaging.getInstance().subscribeToTopic("riders")
-        } catch (e: Exception) {
-            Log.w("SliceSmileApp", "FCM setup notice: ${e.message}")
+        } catch (e: Throwable) {
+            Log.d("SliceSmileApp", "FCM setup notice: ${e.message}")
         }
     }
 }
