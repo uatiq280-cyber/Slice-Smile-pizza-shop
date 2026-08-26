@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -55,14 +56,19 @@ import com.example.ui.theme.PolishPrimaryRed
 import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+
 @Composable
 fun AdminLoginDialog(
     onDismiss: () -> Unit,
-    onLoginSubmit: (ownerId: String, pin: String) -> Boolean
+    onLoginSubmit: (ownerId: String, pin: String, rememberAdmin: Boolean) -> Boolean
 ) {
     var ownerIdText by remember { mutableStateOf("") }
     var pinText by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
+    var rememberAdmin by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val handleLogin = {
@@ -70,7 +76,7 @@ fun AdminLoginDialog(
             errorMessage = "Please enter your Owner Password / PIN"
         } else {
             val id = if (ownerIdText.isBlank()) "admin" else ownerIdText.trim()
-            val success = onLoginSubmit(id, pinText.trim())
+            val success = onLoginSubmit(id, pinText.trim(), rememberAdmin)
             if (!success) {
                 errorMessage = "Incorrect Owner ID or Password! Please try again."
             }
@@ -223,6 +229,42 @@ fun AdminLoginDialog(
                         .fillMaxWidth()
                         .testTag("admin_pin_input")
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Save Admin Login Checkbox
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { rememberAdmin = !rememberAdmin }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = rememberAdmin,
+                        onCheckedChange = { rememberAdmin = it },
+                        colors = CheckboxDefaults.colors(checkedColor = PolishPrimaryRed)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Column {
+                        Text(
+                            text = "Save Admin Login on this device",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = PolishTextDark,
+                                fontSize = 12.5.sp
+                            )
+                        )
+                        Text(
+                            text = "ایڈمن لاگ ان محفوظ رکھیں (بار بار پاس ورڈ نہیں مانگے گا)",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = PolishTextMuted,
+                                fontSize = 10.5.sp
+                            )
+                        )
+                    }
+                }
             }
         },
         confirmButton = {

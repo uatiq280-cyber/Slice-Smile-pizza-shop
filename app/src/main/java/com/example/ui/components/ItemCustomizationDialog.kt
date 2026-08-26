@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +33,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,12 +56,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.model.CrustType
 import com.example.model.MenuCategory
 import com.example.model.MenuItem
@@ -91,12 +100,19 @@ fun ItemCustomizationDialog(
         extraCheese: Boolean,
         spiceLevel: String,
         drinkChoice: String,
-        specialInstructions: String
+        specialInstructions: String,
+        dealSummary: String
     ) -> Unit
 ) {
+    val context = LocalContext.current
+    val effectiveImageUrl = getEffectiveImageUrl(item)
+    val isDealItem = item.category == MenuCategory.DEALS ||
+            item.category == MenuCategory.FAMILY_DEALS ||
+            item.category == MenuCategory.BIRTHDAY_DEALS ||
+            item.dealIncludes.isNotEmpty()
     val isPizzaItem = item.category == MenuCategory.PIZZA ||
             item.category == MenuCategory.SPECIAL_PIZZA ||
-            item.sizeOptions.isNotEmpty()
+            (item.sizeOptions.isNotEmpty() && !isDealItem)
 
     // 1. Size state
     var selectedSize by remember {
@@ -125,6 +141,13 @@ fun ItemCustomizationDialog(
         mutableStateOf(ToppingCategory.VEGETABLES)
     }
 
+    // Deal Customization selections (Pizza flavor, Shawarma flavor, etc.)
+    val pizzaFlavors = listOf("Chicken Tikka", "Chicken Fajita", "Creamy Malai Boti", "Super Supreme", "Cheese Lover", "BBQ Feast")
+    var selectedDealPizzaFlavor by remember { mutableStateOf(pizzaFlavors.first()) }
+
+    val shawarmaFlavors = listOf("Zinger Shawarma", "Classic Chicken Shawarma", "Spicy Shawarma", "Platter Shawarma")
+    var selectedDealShawarmaFlavor by remember { mutableStateOf(shawarmaFlavors.first()) }
+
     // 4. Extras & preferences
     var quantity by remember { mutableIntStateOf(1) }
     var extraCheese by remember { mutableStateOf(false) }
@@ -139,6 +162,23 @@ fun ItemCustomizationDialog(
 
     val unitPriceWithAddons = currentBasePrice + crustPrice + toppingsPrice + extraCheesePrice
     val totalPrice = unitPriceWithAddons * quantity
+
+    val dealCustomizationSummary = remember(isDealItem, selectedDealPizzaFlavor, selectedDealShawarmaFlavor, drinkChoice, selectedSize) {
+        if (isDealItem) {
+            val parts = mutableListOf<String>()
+            parts.add("Pizza: $selectedDealPizzaFlavor")
+            if (item.name.contains("Shawarma", ignoreCase = true) || item.description.contains("Shawarma", ignoreCase = true) || item.dealIncludes.any { it.contains("Shawarma", ignoreCase = true) }) {
+                parts.add("Shawarma: $selectedDealShawarmaFlavor")
+            }
+            if (selectedSize != null) {
+                parts.add("Size: ${selectedSize?.label}")
+            }
+            parts.add("Drink: $drinkChoice")
+            parts.joinToString(" • ")
+        } else {
+            ""
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -162,33 +202,56 @@ fun ItemCustomizationDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(PolishPrimaryContainerSubtle),
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(PolishPrimaryContainerSubtle)
+                                .border(1.dp, PolishBorder, RoundedCornerShape(14.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = if (isPizzaItem) Icons.Default.LocalPizza else Icons.Default.Tune,
-                                contentDescription = null,
-                                tint = PolishPrimaryRed,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            if (!effectiveImageUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(effectiveImageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = item.name,
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (isPizzaItem) Icons.Default.LocalPizza else Icons.Default.Tune,
+                                    contentDescription = null,
+                                    tint = PolishPrimaryRed,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
                                 text = item.name,
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 17.5.sp,
+                                    fontSize = 17.sp,
                                     color = PolishMaroonDark
                                 )
                             )
+                            val catLabel = if (!item.customCategoryName.isNullOrBlank()) {
+                                item.customCategoryName
+                            } else if (isPizzaItem) {
+                                "Customize Crust, Toppings & Size"
+                            } else {
+                                item.category.displayName
+                            }
                             Text(
-                                text = if (isPizzaItem) "Customize Crust, Toppings & Size" else item.category.displayName,
+                                text = catLabel,
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     color = PolishPrimaryRed,
                                     fontWeight = FontWeight.Bold
@@ -215,6 +278,88 @@ fun ItemCustomizationDialog(
                         lineHeight = 17.sp
                     )
                 )
+
+                // Deal Items & Flavor Customization (Pizza flavor, Shawarma flavor, Drinks)
+                if (isDealItem) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Deal Items & Customization / ڈیل کے آئٹمز منتخب کریں",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Black,
+                            color = PolishMaroonDark
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(PolishBgLight)
+                            .border(1.dp, PolishBorder, RoundedCornerShape(18.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // 1. Pizza Flavor Selection for Deal
+                        Text(
+                            text = "🍕 Select Pizza Flavor / پیزا فلیور منتخب کریں:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PolishMaroonDark
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(pizzaFlavors) { flavor ->
+                                val isSelected = selectedDealPizzaFlavor == flavor
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedDealPizzaFlavor = flavor },
+                                    label = { Text(flavor, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = PolishPrimaryRed,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
+
+                        // 2. Shawarma Selection (if applicable or included)
+                        Text(
+                            text = "🌯 Select Shawarma Flavor / شوارما فلیور:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PolishMaroonDark
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(shawarmaFlavors) { flavor ->
+                                val isSelected = selectedDealShawarmaFlavor == flavor
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedDealShawarmaFlavor = flavor },
+                                    label = { Text(flavor, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = PolishPrimaryRed,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
+
+                        // Deal Summary Preview
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = PolishPrimaryContainerSubtle,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+                        ) {
+                            Text(
+                                text = "Selected: $dealCustomizationSummary",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PolishMaroonDark,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
 
                 // 1. Size Selection
                 if (item.sizeOptions.isNotEmpty()) {
@@ -673,16 +818,22 @@ fun ItemCustomizationDialog(
                 OutlinedTextField(
                     value = specialInstructions,
                     onValueChange = { specialInstructions = it },
-                    label = { Text("Special kitchen instructions") },
-                    placeholder = { Text("e.g. Well-done bake, extra spicy, no onion") },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Normal),
+                    label = { Text("Special kitchen instructions (ہدایات)") },
+                    placeholder = { Text("e.g. Well-done bake, extra spicy, no onion", color = PolishTextMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2,
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
                         focusedBorderColor = PolishPrimaryRed,
-                        unfocusedBorderColor = PolishInputBorder,
-                        focusedContainerColor = PolishBgLight,
-                        unfocusedContainerColor = PolishBgLight
+                        unfocusedBorderColor = PolishInputBorder
                     )
                 )
 
@@ -734,7 +885,8 @@ fun ItemCustomizationDialog(
                                 extraCheese,
                                 spiceLevel,
                                 drinkChoice,
-                                specialInstructions
+                                specialInstructions,
+                                dealCustomizationSummary
                             )
                         },
                         colors = ButtonDefaults.buttonColors(

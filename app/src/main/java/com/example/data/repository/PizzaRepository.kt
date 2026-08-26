@@ -587,6 +587,14 @@ class PizzaRepository(
         return adminDao.getConfig("owner_id") ?: "Owner@slicesmile.com"
     }
 
+    suspend fun getAdminConfig(key: String): String? {
+        return adminDao.getConfig(key)
+    }
+
+    suspend fun setAdminConfig(key: String, value: String) {
+        adminDao.setConfig(AdminConfigEntity(key = key, value = value))
+    }
+
     suspend fun syncAdminCredentialsFromCloud() = withContext(Dispatchers.IO) {
         try {
             val db = getDb()
@@ -753,8 +761,10 @@ class PizzaRepository(
                 "id" to item.id,
                 "name" to item.name,
                 "categoryName" to item.category.name,
+                "customCategoryName" to (item.customCategoryName ?: ""),
                 "description" to item.description,
                 "basePrice" to item.basePrice,
+                "imageUrl" to (item.imageUrl ?: ""),
                 "isAvailable" to item.isAvailable,
                 "isDeleted" to isDeleted
             )

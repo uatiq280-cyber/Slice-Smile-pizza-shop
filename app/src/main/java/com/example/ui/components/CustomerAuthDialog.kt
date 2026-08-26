@@ -73,18 +73,22 @@ import com.example.ui.theme.PolishPrimaryRed
 import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
 
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+
 @Composable
 fun CustomerAuthDialog(
     currentName: String = "",
     currentPhone: String = "",
     currentAddress: String = "",
     onDismiss: () -> Unit,
-    onContinueAsGuest: (name: String) -> Unit,
+    onContinueAsGuest: (name: String, rememberLogin: Boolean) -> Unit,
     onRequestOtp: (phone: String) -> String,
-    onVerifyOtpAndLogin: (phone: String, otp: String, name: String) -> Boolean,
-    onLoginWithGoogle: (email: String, name: String) -> Unit
+    onVerifyOtpAndLogin: (phone: String, otp: String, name: String, rememberLogin: Boolean) -> Boolean,
+    onLoginWithGoogle: (email: String, name: String, rememberLogin: Boolean) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Guest, 1: Mobile + OTP, 2: Gmail
+    var rememberLogin by remember { mutableStateOf(true) }
 
     // Guest Mode State
     var guestName by remember { mutableStateOf(currentName.ifBlank { "Guest Foodie" }) }
@@ -218,13 +222,21 @@ fun CustomerAuthDialog(
                             OutlinedTextField(
                                 value = guestName,
                                 onValueChange = { guestName = it },
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 label = { Text("Your Name (آپ کا نام)") },
-                                placeholder = { Text("e.g. Ali Ahmed") },
+                                placeholder = { Text("e.g. Ali Ahmed", color = PolishTextMuted) },
                                 singleLine = true,
                                 leadingIcon = {
                                     Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = PolishPrimaryRed)
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    cursorColor = PolishPrimaryRed,
+                                    focusedLabelColor = PolishPrimaryRed,
+                                    unfocusedLabelColor = PolishTextMuted,
                                     focusedBorderColor = PolishPrimaryRed,
                                     unfocusedBorderColor = PolishInputBorder
                                 ),
@@ -240,12 +252,20 @@ fun CustomerAuthDialog(
                             OutlinedTextField(
                                 value = customerNameInput,
                                 onValueChange = { customerNameInput = it },
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 label = { Text("Full Name (نام)") },
                                 singleLine = true,
                                 leadingIcon = {
                                     Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = PolishPrimaryRed)
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    cursorColor = PolishPrimaryRed,
+                                    focusedLabelColor = PolishPrimaryRed,
+                                    unfocusedLabelColor = PolishTextMuted,
                                     focusedBorderColor = PolishPrimaryRed,
                                     unfocusedBorderColor = PolishInputBorder
                                 ),
@@ -261,8 +281,9 @@ fun CustomerAuthDialog(
                                     phoneInput = it
                                     phoneError = null
                                 },
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 label = { Text("Mobile Number (موبائل نمبر)") },
-                                placeholder = { Text("0300 1234567") },
+                                placeholder = { Text("0300 1234567", color = PolishTextMuted) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Send),
                                 leadingIcon = {
@@ -290,6 +311,13 @@ fun CustomerAuthDialog(
                                     }
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    cursorColor = PolishPrimaryRed,
+                                    focusedLabelColor = PolishPrimaryRed,
+                                    unfocusedLabelColor = PolishTextMuted,
                                     focusedBorderColor = PolishPrimaryRed,
                                     unfocusedBorderColor = PolishInputBorder
                                 ),
@@ -330,14 +358,22 @@ fun CustomerAuthDialog(
                                             otpInput = it
                                             phoneError = null
                                         },
+                                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold),
                                         label = { Text("4-Digit OTP Code") },
-                                        placeholder = { Text("e.g. $sentOtpHint") },
+                                        placeholder = { Text("e.g. $sentOtpHint", color = PolishTextMuted) },
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                                         leadingIcon = {
                                             Icon(imageVector = Icons.Default.Pin, contentDescription = null, tint = PolishPrimaryRed)
                                         },
                                         colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.Black,
+                                            unfocusedTextColor = Color.Black,
+                                            focusedContainerColor = Color.White,
+                                            unfocusedContainerColor = Color.White,
+                                            cursorColor = PolishPrimaryRed,
+                                            focusedLabelColor = PolishPrimaryRed,
+                                            unfocusedLabelColor = PolishTextMuted,
                                             focusedBorderColor = PolishPrimaryRed,
                                             unfocusedBorderColor = PolishInputBorder
                                         ),
@@ -375,12 +411,21 @@ fun CustomerAuthDialog(
                             OutlinedTextField(
                                 value = gmailNameInput,
                                 onValueChange = { gmailNameInput = it },
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 label = { Text("Your Name (نام)") },
+                                placeholder = { Text("e.g. Ali Ahmed", color = PolishTextMuted) },
                                 singleLine = true,
                                 leadingIcon = {
                                     Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = PolishPrimaryRed)
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    cursorColor = PolishPrimaryRed,
+                                    focusedLabelColor = PolishPrimaryRed,
+                                    unfocusedLabelColor = PolishTextMuted,
                                     focusedBorderColor = PolishPrimaryRed,
                                     unfocusedBorderColor = PolishInputBorder
                                 ),
@@ -393,14 +438,22 @@ fun CustomerAuthDialog(
                             OutlinedTextField(
                                 value = gmailInput,
                                 onValueChange = { gmailInput = it },
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 label = { Text("Gmail Address") },
-                                placeholder = { Text("your.email@gmail.com") },
+                                placeholder = { Text("your.email@gmail.com", color = PolishTextMuted) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
                                 leadingIcon = {
                                     Text(text = "G", fontWeight = FontWeight.Bold, color = PolishPrimaryRed, modifier = Modifier.padding(start = 12.dp, end = 4.dp))
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    cursorColor = PolishPrimaryRed,
+                                    focusedLabelColor = PolishPrimaryRed,
+                                    unfocusedLabelColor = PolishTextMuted,
                                     focusedBorderColor = PolishPrimaryRed,
                                     unfocusedBorderColor = PolishInputBorder
                                 ),
@@ -410,13 +463,49 @@ fun CustomerAuthDialog(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Save Login Checkbox
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { rememberLogin = !rememberLogin }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = rememberLogin,
+                        onCheckedChange = { rememberLogin = it },
+                        colors = CheckboxDefaults.colors(checkedColor = PolishPrimaryRed)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Column {
+                        Text(
+                            text = "Save Login on this device",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = PolishTextDark,
+                                fontSize = 12.5.sp
+                            )
+                        )
+                        Text(
+                            text = "لاگ ان محفوظ رکھیں (دوبارہ لاگ ان نہیں کرنا پڑے گا)",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = PolishTextMuted,
+                                fontSize = 10.5.sp
+                            )
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     when (selectedTab) {
-                        0 -> onContinueAsGuest(guestName)
+                        0 -> onContinueAsGuest(guestName, rememberLogin)
                         1 -> {
                             if (!isOtpSent) {
                                 val otp = onRequestOtp(phoneInput.trim())
@@ -424,13 +513,13 @@ fun CustomerAuthDialog(
                                 sentOtpHint = otp
                                 otpInput = otp
                             } else {
-                                val success = onVerifyOtpAndLogin(phoneInput, otpInput, customerNameInput)
+                                val success = onVerifyOtpAndLogin(phoneInput, otpInput, customerNameInput, rememberLogin)
                                 if (!success) {
                                     phoneError = "Invalid OTP code. Please retry!"
                                 }
                             }
                         }
-                        2 -> onLoginWithGoogle(gmailInput, gmailNameInput)
+                        2 -> onLoginWithGoogle(gmailInput, gmailNameInput, rememberLogin)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(

@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
         UserSessionEntity::class,
         RiderEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

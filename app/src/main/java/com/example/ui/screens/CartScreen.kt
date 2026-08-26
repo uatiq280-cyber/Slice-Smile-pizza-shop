@@ -249,8 +249,9 @@ fun CartScreen(
                     OutlinedTextField(
                         value = customerName,
                         onValueChange = onCustomerNameChanged,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                         label = { Text("Customer Full Name *") },
-                        placeholder = { Text("e.g. Muhammad Ali") },
+                        placeholder = { Text("e.g. Muhammad Ali", color = PolishTextMuted) },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = PolishPrimaryRed) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -258,18 +259,24 @@ fun CartScreen(
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            cursorColor = PolishPrimaryRed,
+                            focusedLabelColor = PolishPrimaryRed,
+                            unfocusedLabelColor = PolishTextMuted,
                             focusedBorderColor = PolishPrimaryRed,
-                            unfocusedBorderColor = PolishInputBorder,
-                            focusedContainerColor = PolishBgLight,
-                            unfocusedContainerColor = PolishBgLight
+                            unfocusedBorderColor = PolishInputBorder
                         )
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = customerPhone,
                         onValueChange = onCustomerPhoneChanged,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                         label = { Text("Contact Phone / WhatsApp *") },
-                        placeholder = { Text("e.g. 03001234567") },
+                        placeholder = { Text("e.g. 03001234567", color = PolishTextMuted) },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = PolishPrimaryRed) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -277,10 +284,15 @@ fun CartScreen(
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            cursorColor = PolishPrimaryRed,
+                            focusedLabelColor = PolishPrimaryRed,
+                            unfocusedLabelColor = PolishTextMuted,
                             focusedBorderColor = PolishPrimaryRed,
-                            unfocusedBorderColor = PolishInputBorder,
-                            focusedContainerColor = PolishBgLight,
-                            unfocusedContainerColor = PolishBgLight
+                            unfocusedBorderColor = PolishInputBorder
                         )
                     )
                 }
@@ -331,8 +343,8 @@ fun CartScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(PolishBgLight)
-                            .border(1.dp, PolishBorder, RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .border(1.5.dp, PolishBorder, RoundedCornerShape(16.dp))
                             .clickable { onOpenLocationModal() }
                             .padding(14.dp)
                     ) {
@@ -341,7 +353,7 @@ fun CartScreen(
                                 text = deliveryAddress.ifBlank { "Chowk Nazir Wala" },
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = PolishTextDark
+                                    color = Color.Black
                                 )
                             )
                             if (areaLandmark.isNotBlank()) {
@@ -358,16 +370,22 @@ fun CartScreen(
                     OutlinedTextField(
                         value = orderNote,
                         onValueChange = onOrderNoteChanged,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Normal),
                         label = { Text("Special Delivery Notes / Rider Instructions") },
-                        placeholder = { Text("e.g. Ring bell, extra sauce, hot delivery") },
+                        placeholder = { Text("e.g. Ring bell, extra sauce, hot delivery", color = PolishTextMuted) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         maxLines = 2,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            cursorColor = PolishPrimaryRed,
+                            focusedLabelColor = PolishPrimaryRed,
+                            unfocusedLabelColor = PolishTextMuted,
                             focusedBorderColor = PolishPrimaryRed,
-                            unfocusedBorderColor = PolishInputBorder,
-                            focusedContainerColor = PolishBgLight,
-                            unfocusedContainerColor = PolishBgLight
+                            unfocusedBorderColor = PolishInputBorder
                         )
                     )
                 }

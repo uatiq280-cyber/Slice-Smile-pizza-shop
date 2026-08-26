@@ -18,7 +18,13 @@ enum class MenuCategory(val displayName: String, val iconResName: String) {
     BEVERAGES("Beverages 🍹", "local_drink"),
     COLD_DRINKS("Cold Drinks", "local_drink"),
     JUICES_SHAKES("Juices & Shakes", "blender"),
-    WRAP("Wraps & Rolls", "takeout_dining")
+    WRAP("Wraps & Rolls", "takeout_dining"),
+    SWEETS("Sweets & Mithai 🍬", "cake"),
+    DESSERTS("Desserts & Ice Cream 🍨", "icecream"),
+    PAKISTANI_FOOD("Pakistani Food 🍛", "restaurant"),
+    FAST_FOOD("Fast Food 🍔", "fastfood"),
+    BBQ("BBQ & Grills 🔥", "outdoor_grill"),
+    CUSTOM("Custom Category ✨", "category")
 }
 
 enum class PortionSize(val label: String) {
@@ -37,7 +43,8 @@ data class SizeOption(
 data class MenuItem(
     val id: String,
     val name: String,
-    val category: MenuCategory,
+    val category: MenuCategory = MenuCategory.ALL,
+    val customCategoryName: String? = null,
     val description: String,
     val basePrice: Int,
     val sizeOptions: List<SizeOption> = emptyList(),
@@ -46,8 +53,12 @@ data class MenuItem(
     val isPopular: Boolean = false,
     val tag: String? = null,
     val imageDrawableRes: String? = null,
+    val imageUrl: String? = null,
     val isAvailable: Boolean = true
 ) {
+    val effectiveCategoryName: String
+        get() = customCategoryName?.takeIf { it.isNotBlank() } ?: category.displayName
+
     val defaultPrice: Int
         get() = if (sizeOptions.isNotEmpty()) sizeOptions.first().price else basePrice
 }

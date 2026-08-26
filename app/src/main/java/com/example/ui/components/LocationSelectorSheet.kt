@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,27 +45,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.data.MenuDataSource
+import com.example.service.LocationManager
 import com.example.ui.theme.PolishBgLight
 import com.example.ui.theme.PolishBorder
+import com.example.ui.theme.PolishInputBorder
 import com.example.ui.theme.PolishMaroonDark
 import com.example.ui.theme.PolishPrimaryContainer
 import com.example.ui.theme.PolishPrimaryContainerSubtle
 import com.example.ui.theme.PolishPrimaryRed
 import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -71,8 +80,57 @@ fun LocationSelectorSheet(
     onSaveLocation: (address: String, landmark: String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val locationManager = remember { LocationManager(context) }
+
     var addressInput by remember { mutableStateOf(currentAddress) }
     var landmarkInput by remember { mutableStateOf(currentLandmark) }
+    var isFetchingLocation by remember { mutableStateOf(false) }
+    var locationStatusMsg by remember { mutableStateOf<String?>(null) }
+
+    val fetchGpsLocation = {
+        isFetchingLocation = true
+        locationStatusMsg = "Detecting GPS location..."
+        coroutineScope.launch {
+            try {
+                val loc = locationManager.getCurrentLocation()
+                if (loc != null) {
+                    val latFormatted = String.format(java.util.Locale.US, "%.5f", loc.latitude)
+                    val lngFormatted = String.format(java.util.Locale.US, "%.5f", loc.longitude)
+                    val distKm = locationManager.getDistanceKm(loc.latitude, loc.longitude)
+                    val distStr = String.format(java.util.Locale.US, "%.1f", distKm)
+                    addressInput = "Live GPS: $latFormatted, $lngFormatted (${distStr}km from shop)"
+                    landmarkInput = "Near GPS Location (Within ${distStr} KM of Chowk Nazir Wala)"
+                    locationStatusMsg = "✅ GPS Acquired! (${distStr} km from shop)"
+                } else {
+                    addressInput = "Street 4, House 12, Chowk Nazir Wala"
+                    landmarkInput = "Near Jamia Masjid, Nazir Wala"
+                    locationStatusMsg = "Using default landmark (Chowk Nazir Wala)"
+                }
+            } catch (e: Exception) {
+                addressInput = "Street 4, House 12, Chowk Nazir Wala"
+                landmarkInput = "Near Jamia Masjid, Nazir Wala"
+                locationStatusMsg = "Location set to default Chowk Nazir Wala"
+            } finally {
+                isFetchingLocation = false
+            }
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineGranted || coarseGranted) {
+            fetchGpsLocation()
+        } else {
+            addressInput = "Street 4, House 12, Chowk Nazir Wala"
+            landmarkInput = "Near Jamia Masjid, Nazir Wala"
+            locationStatusMsg = "Permission denied. Using Chowk Nazir Wala default."
+        }
+    }
 
     val quickAreas = listOf(
         "Chowk Nazir Wala",
@@ -177,8 +235,16 @@ fun LocationSelectorSheet(
                 // Detect GPS button
                 OutlinedButton(
                     onClick = {
-                        addressInput = "Street 4, House 12, Chowk Nazir Wala"
-                        landmarkInput = "Near Jamia Masjid, Nazir Wala"
+                        if (locationManager.hasLocationPermission()) {
+                            fetchGpsLocation()
+                        } else {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -187,18 +253,38 @@ fun LocationSelectorSheet(
                     shape = RoundedCornerShape(14.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.MyLocation,
-                        contentDescription = null,
-                        tint = PolishPrimaryRed,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    if (isFetchingLocation) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = PolishPrimaryRed,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MyLocation,
+                            contentDescription = null,
+                            tint = PolishPrimaryRed,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Use My Current GPS Location",
+                        text = if (isFetchingLocation) "Acquiring GPS Signal..." else "Use My Current GPS Location",
                         color = PolishPrimaryRed,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
+                    )
+                }
+
+                if (!locationStatusMsg.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = locationStatusMsg!!,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = PolishPrimaryRed,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.padding(horizontal = 4.dp)
                     )
                 }
 
@@ -265,17 +351,23 @@ fun LocationSelectorSheet(
                 OutlinedTextField(
                     value = addressInput,
                     onValueChange = { addressInput = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 14.5.sp, fontWeight = FontWeight.Medium),
                     label = { Text("Complete Street Address / House No. *") },
-                    placeholder = { Text("e.g. House 45, Street 3, Chowk Nazir Wala") },
+                    placeholder = { Text("e.g. House 45, Street 3, Chowk Nazir Wala", color = PolishTextMuted) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("address_input_field"),
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
                         focusedBorderColor = PolishPrimaryRed,
-                        unfocusedBorderColor = PolishBorder,
-                        focusedContainerColor = PolishBgLight,
-                        unfocusedContainerColor = PolishBgLight
+                        unfocusedBorderColor = PolishInputBorder
                     ),
                     maxLines = 2
                 )
@@ -286,17 +378,23 @@ fun LocationSelectorSheet(
                 OutlinedTextField(
                     value = landmarkInput,
                     onValueChange = { landmarkInput = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 14.5.sp, fontWeight = FontWeight.Medium),
                     label = { Text("Nearby Famous Landmark / Gate / Shop") },
-                    placeholder = { Text("e.g. Opposite Nazir General Store") },
+                    placeholder = { Text("e.g. Opposite Nazir General Store", color = PolishTextMuted) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("landmark_input_field"),
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
                         focusedBorderColor = PolishPrimaryRed,
-                        unfocusedBorderColor = PolishBorder,
-                        focusedContainerColor = PolishBgLight,
-                        unfocusedContainerColor = PolishBgLight
+                        unfocusedBorderColor = PolishInputBorder
                     ),
                     singleLine = true
                 )

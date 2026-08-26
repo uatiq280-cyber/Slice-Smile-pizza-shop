@@ -91,4 +91,31 @@ object WhatsAppOrderHelper {
             Toast.makeText(context, "Unable to make phone call: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
+    fun openShopInGoogleMaps(
+        context: Context,
+        lat: Double = 31.5204,
+        lng: Double = 74.3587,
+        shopTitle: String = "Slice Smile Pizza Shop Chowk Nazir Wala"
+    ) {
+        try {
+            val encodedTitle = URLEncoder.encode(shopTitle, "UTF-8")
+            val geoUri = Uri.parse("geo:$lat,$lng?q=$lat,$lng($encodedTitle)")
+            val mapIntent = Intent(Intent.ACTION_VIEW, geoUri).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(mapIntent)
+        } catch (e: Exception) {
+            try {
+                // Fallback to browser Google Maps URL
+                val webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng")
+                val webIntent = Intent(Intent.ACTION_VIEW, webUri).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(webIntent)
+            } catch (e2: Exception) {
+                Toast.makeText(context, "Could not open Google Maps: ${e2.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 }

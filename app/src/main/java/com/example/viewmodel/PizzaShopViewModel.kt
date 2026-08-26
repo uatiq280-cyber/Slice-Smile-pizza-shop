@@ -43,11 +43,18 @@ sealed class UiEvent {
 class PizzaShopViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: PizzaRepository
 
+    private val _ephemeralUserSession = MutableStateFlow<UserSession?>(null)
+
     init {
         val db = AppDatabase.getDatabase(application)
         repository = PizzaRepository(application, db)
         viewModelScope.launch {
             repository.refreshOrdersFromCloud()
+            val isPersistentAdmin = repository.getAdminConfig("admin_persistent_session") == "true"
+            if (isPersistentAdmin) {
+                _isAdminLoggedIn.value = true
+                repository.setAdminActive(true)
+            }
         }
     }
 
@@ -92,12 +99,16 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MenuDataSource.sampleReviews)
 
     // Customer Session & Authentication
-    val userSession: StateFlow<UserSession> = repository.userSessionFlow
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            UserSession(name = "Guest Foodie", authType = AuthType.GUEST)
-        )
+    val userSession: StateFlow<UserSession> = combine(
+        repository.userSessionFlow,
+        _ephemeralUserSession
+    ) { repoSession, ephemeralSession ->
+        ephemeralSession ?: repoSession
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        UserSession(name = "Guest Foodie", authType = AuthType.GUEST)
+    )
 
     private val _myPlacedOrderIds = MutableStateFlow<Set<Long>>(emptySet())
     val myPlacedOrderIds: StateFlow<Set<Long>> = _myPlacedOrderIds.asStateFlow()
@@ -213,7 +224,17 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     ) { items, category, query ->
         var list = items
         if (category != MenuCategory.ALL) {
-            list = list.filter { it.category == category }
+            list = list.filter {
+                if (category == MenuCategory.CUSTOM) {
+                    !it.customCategoryName.isNullOrBlank()
+                } else if (!it.customCategoryName.isNullOrBlank()) {
+                    it.customCategoryName.equals(category.displayName, ignoreCase = true) ||
+                    it.customCategoryName.contains(category.displayName.substringBefore(" "), ignoreCase = true) ||
+                    it.category == category
+                } else {
+                    it.category == category
+                }
+            }
         }
         if (query.isNotBlank()) {
             val q = query.trim().lowercase()
@@ -221,7 +242,8 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                 it.name.lowercase().contains(q) ||
                 it.description.lowercase().contains(q) ||
                 it.dealIncludes.any { item -> item.lowercase().contains(q) } ||
-                (it.tag?.lowercase()?.contains(q) == true)
+                (it.tag?.lowercase()?.contains(q) == true) ||
+                (it.customCategoryName?.lowercase()?.contains(q) == true)
             }
         }
         list
@@ -346,7 +368,8 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         extraCheese: Boolean,
         spiceLevel: String,
         drinkChoice: String,
-        specialInstructions: String
+        specialInstructions: String,
+        dealCustomizationSummary: String = ""
     ) {
         val newItem = CartItem(
             cartItemId = UUID.randomUUID().toString(),
@@ -359,7 +382,8 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             extraCheese = extraCheese,
             spiceLevel = spiceLevel,
             drinkChoice = drinkChoice,
-            specialInstructions = specialInstructions
+            specialInstructions = specialInstructions,
+            dealCustomizationSummary = dealCustomizationSummary
         )
         _cartItems.value = _cartItems.value + newItem
         _customizingItem.value = null
@@ -559,7 +583,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         _isShowingAuthDialog.value = show
     }
 
-    fun loginAsGuest(name: String = "Guest Foodie") {
+    fun loginAsGuest(name: String = "Guest Foodie", rememberLogin: Boolean = true) {
         viewModelScope.launch {
             val session = UserSession(
                 userId = "guest_${System.currentTimeMillis() % 10000}",
@@ -570,7 +594,12 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                 isVerified = false,
                 deliveryAddress = _deliveryAddress.value
             )
-            repository.saveUserSession(session)
+            if (rememberLogin) {
+                repository.saveUserSession(session)
+                _ephemeralUserSession.value = null
+            } else {
+                _ephemeralUserSession.value = session
+            }
             _customerName.value = session.name
             _isShowingAuthDialog.value = false
             _eventFlow.emit(UiEvent.ShowToast("Welcome, ${session.name}! (Guest Mode) 🍕"))
@@ -587,7 +616,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         return randomOtp
     }
 
-    fun verifyAndLoginWithPhone(phone: String, otpEntered: String, name: String): Boolean {
+    fun verifyAndLoginWithPhone(phone: String, otpEntered: String, name: String, rememberLogin: Boolean = true): Boolean {
         val cleanPhone = phone.trim()
         val cleanOtp = otpEntered.trim()
         val expectedOtp = _generatedOtp.value
@@ -604,7 +633,12 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                     isVerified = true,
                     deliveryAddress = _deliveryAddress.value
                 )
-                repository.saveUserSession(session)
+                if (rememberLogin) {
+                    repository.saveUserSession(session)
+                    _ephemeralUserSession.value = null
+                } else {
+                    _ephemeralUserSession.value = session
+                }
                 _customerName.value = session.name
                 _customerPhone.value = cleanPhone
                 _isShowingAuthDialog.value = false
@@ -619,7 +653,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun loginWithGoogle(email: String, name: String) {
+    fun loginWithGoogle(email: String, name: String, rememberLogin: Boolean = true) {
         viewModelScope.launch {
             val session = UserSession(
                 userId = "google_${email.replace("@", "_").replace(".", "_")}",
@@ -630,7 +664,12 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                 isVerified = true,
                 deliveryAddress = _deliveryAddress.value
             )
-            repository.saveUserSession(session)
+            if (rememberLogin) {
+                repository.saveUserSession(session)
+                _ephemeralUserSession.value = null
+            } else {
+                _ephemeralUserSession.value = session
+            }
             _customerName.value = session.name
             _isShowingAuthDialog.value = false
             _eventFlow.emit(UiEvent.ShowToast("Logged in with Google as ${session.name}! 📧"))
@@ -641,6 +680,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val guestSession = UserSession(name = "Guest Foodie", authType = AuthType.GUEST)
             repository.saveUserSession(guestSession)
+            _ephemeralUserSession.value = null
             _customerName.value = ""
             _customerPhone.value = ""
             _eventFlow.emit(UiEvent.ShowToast("Logged out to Guest Mode 🚪"))
@@ -656,6 +696,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                 deliveryAddress = address.ifBlank { current.deliveryAddress }
             )
             repository.saveUserSession(updated)
+            _ephemeralUserSession.value = null
             _customerName.value = updated.name
             _customerPhone.value = updated.phone
             _deliveryAddress.value = updated.deliveryAddress
@@ -676,7 +717,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         _isShowingChangePinDialog.value = show
     }
 
-    fun verifyAndLoginAdmin(enteredOwnerId: String, enteredPin: String): Boolean {
+    fun verifyAndLoginAdmin(enteredOwnerId: String, enteredPin: String, rememberAdmin: Boolean = true): Boolean {
         val currentOwnerId = ownerId.value.trim()
         val currentPin = adminPin.value.trim()
 
@@ -692,6 +733,9 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             repository.setAdminActive(true)
             _isShowingAdminLogin.value = false
             _isShowingRoleSelector.value = false
+            viewModelScope.launch {
+                repository.setAdminConfig("admin_persistent_session", if (rememberAdmin) "true" else "false")
+            }
             refreshOrdersFromCloud()
             viewModelScope.launch {
                 _eventFlow.emit(UiEvent.ShowToast("Welcome to Owner / Admin Portal 👑"))
@@ -709,6 +753,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         _isAdminLoggedIn.value = false
         repository.setAdminActive(false)
         viewModelScope.launch {
+            repository.setAdminConfig("admin_persistent_session", "false")
             _eventFlow.emit(UiEvent.ShowToast("Logged out of Owner Portal 🔒"))
         }
     }

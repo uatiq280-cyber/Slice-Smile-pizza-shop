@@ -38,6 +38,7 @@ data class CustomMenuItemEntity(
     val id: String,
     val name: String,
     val categoryName: String,
+    val customCategoryName: String? = null,
     val description: String,
     val basePrice: Int,
     val sizeOptionsSerialized: String = "", // e.g. "SMALL:450;MEDIUM:850;LARGE:1200;EXTRA_LARGE:1500"
@@ -46,6 +47,7 @@ data class CustomMenuItemEntity(
     val isPopular: Boolean = false,
     val tag: String? = null,
     val imageDrawableRes: String? = null,
+    val imageUrl: String? = null,
     val isAvailable: Boolean = true,
     val isDeleted: Boolean = false
 ) {
@@ -53,7 +55,7 @@ data class CustomMenuItemEntity(
         val cat = try {
             MenuCategory.valueOf(categoryName)
         } catch (e: Exception) {
-            MenuCategory.DEALS
+            MenuCategory.CUSTOM
         }
 
         val sizes = if (sizeOptionsSerialized.isNotBlank()) {
@@ -83,6 +85,7 @@ data class CustomMenuItemEntity(
             id = id,
             name = name,
             category = cat,
+            customCategoryName = customCategoryName,
             description = description,
             basePrice = basePrice,
             sizeOptions = sizes,
@@ -91,6 +94,7 @@ data class CustomMenuItemEntity(
             isPopular = isPopular,
             tag = tag,
             imageDrawableRes = imageDrawableRes,
+            imageUrl = imageUrl,
             isAvailable = isAvailable
         )
     }
@@ -104,6 +108,7 @@ data class CustomMenuItemEntity(
                 id = item.id,
                 name = item.name,
                 categoryName = item.category.name,
+                customCategoryName = item.customCategoryName,
                 description = item.description,
                 basePrice = item.basePrice,
                 sizeOptionsSerialized = sizesStr,
@@ -112,6 +117,7 @@ data class CustomMenuItemEntity(
                 isPopular = item.isPopular,
                 tag = item.tag,
                 imageDrawableRes = item.imageDrawableRes,
+                imageUrl = item.imageUrl,
                 isAvailable = item.isAvailable,
                 isDeleted = isDeleted
             )

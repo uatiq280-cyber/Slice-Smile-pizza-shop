@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.LocalPizza
 import androidx.compose.material.icons.filled.Paid
@@ -56,13 +57,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.model.MenuCategory
 import com.example.model.MenuItem
 import com.example.model.PortionSize
@@ -90,15 +97,44 @@ fun AdminEditItemDialog(
     onSave: (MenuItem) -> Unit
 ) {
     val isNew = itemToEdit == null
+    val context = LocalContext.current
 
     var name by remember { mutableStateOf(itemToEdit?.name ?: "") }
     var selectedCategory by remember { mutableStateOf(itemToEdit?.category ?: MenuCategory.DEALS) }
+    var customCategoryName by remember { mutableStateOf(itemToEdit?.customCategoryName ?: "") }
+    var imageUrl by remember { mutableStateOf(itemToEdit?.imageUrl ?: "") }
     var description by remember { mutableStateOf(itemToEdit?.description ?: "") }
     var basePriceText by remember { mutableStateOf(itemToEdit?.basePrice?.toString() ?: "500") }
     var tag by remember { mutableStateOf(itemToEdit?.tag ?: "") }
     var isPopular by remember { mutableStateOf(itemToEdit?.isPopular ?: false) }
     var isSpicy by remember { mutableStateOf(itemToEdit?.isSpicy ?: false) }
     var isAvailable by remember { mutableStateOf(itemToEdit?.isAvailable ?: true) }
+
+    // Preset food images
+    val presetImages = listOf(
+        "Pizza" to "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80",
+        "Burger" to "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80",
+        "Shawarma" to "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&auto=format&fit=crop&q=80",
+        "Pasta" to "https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&auto=format&fit=crop&q=80",
+        "Pakistani Food" to "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop&q=80",
+        "Sweets & Mithai" to "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=600&auto=format&fit=crop&q=80",
+        "Dessert & Cake" to "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80",
+        "Cold Drink" to "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
+        "Broast & Fries" to "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&auto=format&fit=crop&q=80",
+        "Ice Cream" to "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?w=600&auto=format&fit=crop&q=80"
+    )
+
+    // Quick category suggestions
+    val categorySuggestions = listOf(
+        "Sweets",
+        "Desserts",
+        "Pakistani Food",
+        "Barbecue / BBQ",
+        "Ice Cream & Shakes",
+        "Biryani & Rice",
+        "Chaat & Snacks",
+        "Salads & Soups"
+    )
 
     // Pizza size prices
     var hasSizes by remember {
@@ -164,6 +200,8 @@ fun AdminEditItemDialog(
                 id = finalId,
                 name = name.trim(),
                 category = selectedCategory,
+                customCategoryName = customCategoryName.trim().ifBlank { null },
+                imageUrl = imageUrl.trim().ifBlank { null },
                 description = description.trim(),
                 basePrice = if (hasSizes && sizeOptions.isNotEmpty()) sizeOptions.first().price else basePrice,
                 sizeOptions = sizeOptions,
@@ -204,7 +242,7 @@ fun AdminEditItemDialog(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = if (isNew) "Add New Deal / Item" else "Edit Item & Rate",
+                        text = if (isNew) "Add Menu Item / Category" else "Edit Item & Rate",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = PolishTextDark,
@@ -212,7 +250,7 @@ fun AdminEditItemDialog(
                         )
                     )
                     Text(
-                        text = if (isNew) "نیا مینو آئٹم یا ڈیل شامل کریں" else "قیمت اور تفصیلات تبدیل کریں",
+                        text = if (isNew) "نیا مینو آئٹم یا نئی کیٹیگری شامل کریں" else "قیمت اور تفصیلات تبدیل کریں",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = PolishTextMuted,
                             fontSize = 11.sp
@@ -234,10 +272,18 @@ fun AdminEditItemDialog(
                         name = it
                         errorMessage = null
                     },
-                    label = { Text("Item / Deal Name (نام)") },
-                    placeholder = { Text("e.g. Deal No 7 or Chicken Tikka Pizza") },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                    label = { Text("Item / Deal Name (نام) *") },
+                    placeholder = { Text("e.g. Chicken Biryani or Gulab Jamun", color = PolishTextMuted) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
                         focusedBorderColor = PolishPrimaryRed,
                         unfocusedBorderColor = PolishInputBorder
                     ),
@@ -256,12 +302,20 @@ fun AdminEditItemDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedTextField(
-                        value = selectedCategory.displayName,
+                        value = if (customCategoryName.isNotBlank()) "Custom: $customCategoryName" else selectedCategory.displayName,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Category (کیٹیگری)") },
+                        textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                        label = { Text("Main Category (بنیادی کیٹیگری)") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            cursorColor = PolishPrimaryRed,
+                            focusedLabelColor = PolishPrimaryRed,
+                            unfocusedLabelColor = PolishTextMuted,
                             focusedBorderColor = PolishPrimaryRed,
                             unfocusedBorderColor = PolishInputBorder
                         ),
@@ -292,15 +346,160 @@ fun AdminEditItemDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // 3. Description / Deal Ingredients
+                // Custom Category Name Input
+                OutlinedTextField(
+                    value = customCategoryName,
+                    onValueChange = { customCategoryName = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 14.5.sp, fontWeight = FontWeight.Medium),
+                    label = { Text("Custom Category Name (نئی کیٹیگری مثلاً Sweets / Desserts)") },
+                    placeholder = { Text("e.g. Sweets, Desserts, Pakistani Food, BBQ", color = PolishTextMuted) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
+                        focusedBorderColor = PolishPrimaryRed,
+                        unfocusedBorderColor = PolishInputBorder
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Quick Category Suggestion Chips
+                Text(
+                    text = "Quick Categories (فوری منتخب کریں):",
+                    style = MaterialTheme.typography.labelSmall.copy(color = PolishTextMuted, fontWeight = FontWeight.SemiBold)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    categorySuggestions.forEach { suggestion ->
+                        val isChosen = customCategoryName.equals(suggestion, ignoreCase = true)
+                        FilterChip(
+                            selected = isChosen,
+                            onClick = {
+                                customCategoryName = if (isChosen) "" else suggestion
+                            },
+                            label = { Text(suggestion, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PolishPrimaryContainerSubtle,
+                                selectedLabelColor = PolishPrimaryRed,
+                                containerColor = PolishBgLight,
+                                labelColor = PolishTextDark
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 3. Item Picture / Image URL
+                Text(
+                    text = "Item Photo / Picture (تصویر):",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = PolishMaroonDark
+                    )
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                OutlinedTextField(
+                    value = imageUrl,
+                    onValueChange = { imageUrl = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Normal),
+                    label = { Text("Image URL (آن لائن تصویر کا لنک یا نیچے سے چنیں)") },
+                    placeholder = { Text("https://example.com/item.jpg", color = PolishTextMuted) },
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = PolishPrimaryRed)
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
+                        focusedBorderColor = PolishPrimaryRed,
+                        unfocusedBorderColor = PolishInputBorder
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Preset Photo Chips
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    presetImages.forEach { (label, url) ->
+                        val isSelected = imageUrl == url
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { imageUrl = url },
+                            label = { Text(label, fontSize = 10.5.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PolishPrimaryRed,
+                                selectedLabelColor = Color.White,
+                                containerColor = PolishBgLight,
+                                labelColor = PolishTextDark
+                            )
+                        )
+                    }
+                }
+
+                if (imageUrl.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, PolishBorder, RoundedCornerShape(12.dp))
+                            .background(PolishBgLight)
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(imageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Preview",
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 4. Description / Deal Ingredients
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Normal),
                     label = { Text("Description / Includes (تفصیل / ڈیل کے اجزاء)") },
-                    placeholder = { Text("e.g. 1 Large Pizza + 2 Zingers + 1 Litre Coke") },
+                    placeholder = { Text("e.g. Freshly cooked with premium spices", color = PolishTextMuted) },
                     minLines = 2,
                     maxLines = 4,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
                         focusedBorderColor = PolishPrimaryRed,
                         unfocusedBorderColor = PolishInputBorder
                     ),
@@ -310,7 +509,7 @@ fun AdminEditItemDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 4. Pizza Sizes Toggle
+                // 5. Pizza Sizes Toggle
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -321,7 +520,7 @@ fun AdminEditItemDialog(
                 ) {
                     Column {
                         Text(
-                            text = "Multiple Pizza Sizes (Small/Med/Large)",
+                            text = "Multiple Sizes (Small/Med/Large)",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = PolishTextDark,
@@ -348,7 +547,7 @@ fun AdminEditItemDialog(
                 // Price Inputs
                 if (hasSizes) {
                     Text(
-                        text = "Pizza Size Rates (روپے):",
+                        text = "Size Rates (روپے):",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
                             color = PolishMaroonDark
@@ -360,10 +559,18 @@ fun AdminEditItemDialog(
                         OutlinedTextField(
                             value = smallPriceText,
                             onValueChange = { smallPriceText = it },
+                            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold),
                             label = { Text("Small (S)", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                cursorColor = PolishPrimaryRed,
+                                focusedLabelColor = PolishPrimaryRed,
+                                unfocusedLabelColor = PolishTextMuted,
                                 focusedBorderColor = PolishPrimaryRed,
                                 unfocusedBorderColor = PolishInputBorder
                             ),
@@ -373,10 +580,18 @@ fun AdminEditItemDialog(
                         OutlinedTextField(
                             value = mediumPriceText,
                             onValueChange = { mediumPriceText = it },
+                            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold),
                             label = { Text("Medium (M)", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                cursorColor = PolishPrimaryRed,
+                                focusedLabelColor = PolishPrimaryRed,
+                                unfocusedLabelColor = PolishTextMuted,
                                 focusedBorderColor = PolishPrimaryRed,
                                 unfocusedBorderColor = PolishInputBorder
                             ),
@@ -391,10 +606,18 @@ fun AdminEditItemDialog(
                         OutlinedTextField(
                             value = largePriceText,
                             onValueChange = { largePriceText = it },
+                            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold),
                             label = { Text("Large (L)", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                cursorColor = PolishPrimaryRed,
+                                focusedLabelColor = PolishPrimaryRed,
+                                unfocusedLabelColor = PolishTextMuted,
                                 focusedBorderColor = PolishPrimaryRed,
                                 unfocusedBorderColor = PolishInputBorder
                             ),
@@ -404,10 +627,18 @@ fun AdminEditItemDialog(
                         OutlinedTextField(
                             value = xlPriceText,
                             onValueChange = { xlPriceText = it },
+                            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold),
                             label = { Text("XL (Extra)", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                cursorColor = PolishPrimaryRed,
+                                focusedLabelColor = PolishPrimaryRed,
+                                unfocusedLabelColor = PolishTextMuted,
                                 focusedBorderColor = PolishPrimaryRed,
                                 unfocusedBorderColor = PolishInputBorder
                             ),
@@ -419,8 +650,9 @@ fun AdminEditItemDialog(
                     OutlinedTextField(
                         value = basePriceText,
                         onValueChange = { basePriceText = it },
+                        textStyle = TextStyle(color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Bold),
                         label = { Text("Price (قیمت - Rs.)") },
-                        placeholder = { Text("e.g. 450") },
+                        placeholder = { Text("e.g. 450", color = PolishTextMuted) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         leadingIcon = {
@@ -431,6 +663,13 @@ fun AdminEditItemDialog(
                             )
                         },
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            cursorColor = PolishPrimaryRed,
+                            focusedLabelColor = PolishPrimaryRed,
+                            unfocusedLabelColor = PolishTextMuted,
                             focusedBorderColor = PolishPrimaryRed,
                             unfocusedBorderColor = PolishInputBorder
                         ),
@@ -447,10 +686,18 @@ fun AdminEditItemDialog(
                 OutlinedTextField(
                     value = tag,
                     onValueChange = { tag = it },
+                    textStyle = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Medium),
                     label = { Text("Badge / Tag (اختیاری ٹیگ)") },
-                    placeholder = { Text("e.g. Super Saver / Hot Deal") },
+                    placeholder = { Text("e.g. Super Saver / Hot Deal", color = PolishTextMuted) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = PolishPrimaryRed,
+                        focusedLabelColor = PolishPrimaryRed,
+                        unfocusedLabelColor = PolishTextMuted,
                         focusedBorderColor = PolishPrimaryRed,
                         unfocusedBorderColor = PolishInputBorder
                     ),

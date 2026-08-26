@@ -267,7 +267,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             )
                         }
                 ) {
-                    navigationScreens.forEach { screen ->
+                    val activeNavigationScreens = if (isAdminLoggedIn) navigationScreens + Screen.Admin else navigationScreens
+                    activeNavigationScreens.forEach { screen ->
                         val isSelected = currentRoute == screen.route
                         NavigationBarItem(
                             selected = isSelected,
@@ -553,17 +554,17 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                     currentPhone = customerPhone,
                     currentAddress = deliveryAddress,
                     onDismiss = { viewModel.showAuthDialog(false) },
-                    onContinueAsGuest = { name ->
-                        viewModel.loginAsGuest(name)
+                    onContinueAsGuest = { name, rememberLogin ->
+                        viewModel.loginAsGuest(name, rememberLogin)
                     },
                     onRequestOtp = { phone ->
                         viewModel.requestPhoneOtp(phone)
                     },
-                    onVerifyOtpAndLogin = { phone, otp, name ->
-                        viewModel.verifyAndLoginWithPhone(phone, otp, name)
+                    onVerifyOtpAndLogin = { phone, otp, name, rememberLogin ->
+                        viewModel.verifyAndLoginWithPhone(phone, otp, name, rememberLogin)
                     },
-                    onLoginWithGoogle = { email, name ->
-                        viewModel.loginWithGoogle(email, name)
+                    onLoginWithGoogle = { email, name, rememberLogin ->
+                        viewModel.loginWithGoogle(email, name, rememberLogin)
                     }
                 )
             }
@@ -572,8 +573,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
             if (isShowingAdminLogin) {
                 AdminLoginDialog(
                     onDismiss = { viewModel.showAdminLoginDialog(false) },
-                    onLoginSubmit = { enteredOwnerId, enteredPin ->
-                        val isValid = viewModel.verifyAndLoginAdmin(enteredOwnerId, enteredPin)
+                    onLoginSubmit = { enteredOwnerId, enteredPin, rememberAdmin ->
+                        val isValid = viewModel.verifyAndLoginAdmin(enteredOwnerId, enteredPin, rememberAdmin)
                         if (isValid) {
                             navController.navigate(Screen.Admin.route)
                         }
@@ -642,7 +643,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                 ItemCustomizationDialog(
                     item = item,
                     onDismiss = viewModel::closeItemCustomization,
-                    onConfirmAddToCart = { menuItem, size, crust, toppings, unitPrice, qty, extraCheese, spice, drink, notes ->
+                    onConfirmAddToCart = { menuItem, size, crust, toppings, unitPrice, qty, extraCheese, spice, drink, notes, dealSummary ->
                         viewModel.addToCart(
                             menuItem = menuItem,
                             size = size,
@@ -653,7 +654,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             extraCheese = extraCheese,
                             spiceLevel = spice,
                             drinkChoice = drink,
-                            specialInstructions = notes
+                            specialInstructions = notes,
+                            dealCustomizationSummary = dealSummary
                         )
                     }
                 )

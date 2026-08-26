@@ -127,12 +127,13 @@ fun MenuScreen(
                         shape = RoundedCornerShape(20.dp),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
                             focusedBorderColor = PolishPrimaryRed,
                             unfocusedBorderColor = PolishInputBorder,
                             focusedContainerColor = Color.White,
                             unfocusedContainerColor = Color.White,
-                            focusedTextColor = PolishTextDark,
-                            unfocusedTextColor = PolishTextDark
+                            cursorColor = PolishPrimaryRed
                         )
                     )
                 }

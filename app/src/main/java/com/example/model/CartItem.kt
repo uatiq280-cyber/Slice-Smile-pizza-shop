@@ -11,7 +11,8 @@ data class CartItem(
     val extraCheese: Boolean = false,
     val spiceLevel: String = "Normal",
     val drinkChoice: String = "Regular Coke",
-    val specialInstructions: String = ""
+    val specialInstructions: String = "",
+    val dealCustomizationSummary: String = ""
 ) {
     val crustPrice: Int get() = selectedCrust?.priceModifier ?: 0
     val toppingsPrice: Int get() = selectedToppings.sumOf { it.price }
@@ -20,6 +21,9 @@ data class CartItem(
     val totalItemPrice: Int get() = singleItemPrice * quantity
 
     val customizationDescription: String get() {
+        if (dealCustomizationSummary.isNotBlank()) {
+            return dealCustomizationSummary
+        }
         val parts = mutableListOf<String>()
         selectedSize?.let { parts.add(it.label) }
         selectedCrust?.let { parts.add(it.displayName) }
