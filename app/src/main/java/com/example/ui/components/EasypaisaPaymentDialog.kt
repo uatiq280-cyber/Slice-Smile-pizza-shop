@@ -68,10 +68,15 @@ import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
 import com.example.ui.theme.WhatsAppGreen
 
+import com.example.model.PaymentMethod
+import com.example.model.PaymentSettings
+
 @Composable
 fun EasypaisaPaymentDialog(
     totalPayable: Int,
     currentTrxId: String,
+    paymentMethod: PaymentMethod = PaymentMethod.EASYPAISA,
+    paymentSettings: PaymentSettings = PaymentSettings(),
     onTrxIdChanged: (String) -> Unit,
     onDismiss: () -> Unit,
     onConfirmOrder: () -> Unit
@@ -79,11 +84,35 @@ fun EasypaisaPaymentDialog(
     val context = LocalContext.current
     var trxInput by remember { mutableStateOf(currentTrxId) }
 
+    val methodName = when (paymentMethod) {
+        PaymentMethod.JAZZCASH -> "JazzCash"
+        PaymentMethod.BANK_TRANSFER -> "Bank Transfer / Raast"
+        else -> "Easypaisa"
+    }
+
+    val accountNumber = when (paymentMethod) {
+        PaymentMethod.JAZZCASH -> paymentSettings.jazzcashNumber
+        PaymentMethod.BANK_TRANSFER -> paymentSettings.bankIban
+        else -> paymentSettings.easypaisaNumber
+    }
+
+    val accountTitle = when (paymentMethod) {
+        PaymentMethod.JAZZCASH -> paymentSettings.jazzcashTitle
+        PaymentMethod.BANK_TRANSFER -> "${paymentSettings.bankName} - ${paymentSettings.bankAccountTitle}"
+        else -> paymentSettings.easypaisaTitle
+    }
+
+    val brandColor = when (paymentMethod) {
+        PaymentMethod.JAZZCASH -> Color(0xFFD32F2F)
+        PaymentMethod.BANK_TRANSFER -> Color(0xFF1565C0)
+        else -> EasypaisaGreen
+    }
+
     fun copyToClipboard(text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("Easypaisa Account", text)
+        val clip = ClipData.newPlainText("$methodName Account", text)
         clipboard.setPrimaryClip(clip)
-        Toast.makeText(context, "Easypaisa number copied: $text", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "$methodName details copied: $text", Toast.LENGTH_SHORT).show()
     }
 
     Dialog(
@@ -113,29 +142,29 @@ fun EasypaisaPaymentDialog(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(EasypaisaGreen.copy(alpha = 0.15f)),
+                                .background(brandColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Payments,
                                 contentDescription = null,
-                                tint = EasypaisaGreen,
+                                tint = brandColor,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Easypaisa Payment",
+                                text = "$methodName Payment",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Black,
                                     color = PolishMaroonDark
                                 )
                             )
                             Text(
-                                text = "Online Food Order Payment",
+                                text = "Online Direct Food Payment",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = EasypaisaGreen,
+                                    color = brandColor,
                                     fontWeight = FontWeight.Bold
                                 )
                             )
@@ -192,21 +221,21 @@ fun EasypaisaPaymentDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Easypaisa Account Number",
+                                    text = if (paymentMethod == PaymentMethod.BANK_TRANSFER) "IBAN / Raast ID" else "$methodName Mobile Number",
                                     style = MaterialTheme.typography.labelSmall.copy(color = PolishTextMuted)
                                 )
                                 Text(
-                                    text = MenuDataSource.EASYPAISA_ACCOUNT_NUMBER,
+                                    text = accountNumber,
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.Black,
-                                        letterSpacing = 1.sp,
-                                        color = EasypaisaGreen
+                                        letterSpacing = 0.5.sp,
+                                        color = brandColor
                                     )
                                 )
                                 Text(
-                                    text = "Title: ${MenuDataSource.EASYPAISA_ACCOUNT_TITLE}",
+                                    text = "Title: $accountTitle",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         color = PolishMaroonDark
@@ -215,8 +244,8 @@ fun EasypaisaPaymentDialog(
                             }
 
                             Button(
-                                onClick = { copyToClipboard(MenuDataSource.EASYPAISA_ACCOUNT_NUMBER) },
-                                colors = ButtonDefaults.buttonColors(containerColor = EasypaisaGreen),
+                                onClick = { copyToClipboard(accountNumber) },
+                                colors = ButtonDefaults.buttonColors(containerColor = brandColor),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.testTag("copy_easypaisa_btn")
                             ) {
@@ -253,7 +282,7 @@ fun EasypaisaPaymentDialog(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "1. اپنی Easypaisa App کھولیں یا *786# ملائیں۔\n2. Rs. $totalPayable رقم اس نمبر 03254946190 پر ٹرانسفر کریں۔\n3. موصول ہونے والی TRX ID نیچے درج کریں۔",
+                        text = "1. اپنی $methodName ایپ کھولیں۔\n2. Rs. $totalPayable رقم اس اکاؤنٹ $accountNumber پر ٹرانسفر کریں۔\n3. موصول ہونے والی TRX ID نیچے درج کریں۔",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = PolishTextMuted,
                             lineHeight = 18.sp
@@ -271,7 +300,7 @@ fun EasypaisaPaymentDialog(
                         onTrxIdChanged(it)
                     },
                     label = { Text("Transaction ID / TRX ID (e.g. 2938472910)") },
-                    placeholder = { Text("Enter Easypaisa TRX ID") },
+                    placeholder = { Text("Enter $methodName TRX ID / Reference") },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -288,7 +317,7 @@ fun EasypaisaPaymentDialog(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                tint = EasypaisaGreen
+                                tint = brandColor
                             )
                         }
                     }
@@ -302,7 +331,7 @@ fun EasypaisaPaymentDialog(
                         WhatsAppOrderHelper.sendRawWhatsAppMessage(
                             context,
                             MenuDataSource.PRIMARY_WHATSAPP,
-                            "Salam! I am sending Easypaisa payment of Rs. $totalPayable to 03254946190. My TRX ID is: ${trxInput.ifBlank { "Attached below" }}"
+                            "Salam! I am sending $methodName payment of Rs. $totalPayable to $accountNumber ($accountTitle). My TRX ID is: ${trxInput.ifBlank { "Attached below" }}"
                         )
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),

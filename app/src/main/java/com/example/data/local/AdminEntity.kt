@@ -25,6 +25,9 @@ interface AdminDao {
     @Query("SELECT value FROM admin_config WHERE `key` = :key LIMIT 1")
     fun getConfigFlow(key: String): Flow<String?>
 
+    @Query("SELECT * FROM admin_config")
+    fun getAllConfigsFlow(): Flow<List<AdminConfigEntity>>
+
     @Query("SELECT value FROM admin_config WHERE `key` = :key LIMIT 1")
     suspend fun getConfig(key: String): String?
 

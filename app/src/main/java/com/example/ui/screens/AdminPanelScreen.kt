@@ -122,15 +122,27 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Refresh
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Save
+import com.example.model.CustomerUsageStats
+import com.example.model.PaymentSettings
+
 @Composable
 fun AdminPanelScreen(
     menuItems: List<MenuItem>,
     orders: List<Order>,
     riders: List<Rider>,
+    paymentSettings: PaymentSettings = PaymentSettings(),
+    customerUsageStats: List<CustomerUsageStats> = emptyList(),
     cloudSyncStatus: CloudSyncStatus = CloudSyncStatus(),
     isRefreshingOrders: Boolean = false,
     onRefreshOrders: () -> Unit = {},
     onTestCloudConnection: () -> Unit = {},
+    onUpdatePaymentSettings: (PaymentSettings) -> Unit = {},
     onAddNewItem: () -> Unit,
     onEditItem: (MenuItem) -> Unit,
     onDeleteItem: (String) -> Unit,
@@ -550,15 +562,27 @@ fun AdminPanelScreen(
                         )
                     }
                 )
+                Tab(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    text = {
+                        Text(
+                            "💳 Payment Methods",
+                            fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 4) PolishPrimaryRed else PolishTextMuted
+                        )
+                    }
+                )
             }
 
             // 3. Tab Contents
             when (selectedTab) {
                 0 -> {
-                    // Analytics & Income Dashboard Tab
+                    // Analytics & Income Dashboard Tab with Customer Activity
                     AdminAnalyticsDashboard(
                         orders = orders,
                         menuItems = menuItems,
+                        customerUsageStats = customerUsageStats,
                         isRefreshing = isRefreshingOrders,
                         onRefreshClick = onRefreshOrders
                     )
@@ -597,6 +621,13 @@ fun AdminPanelScreen(
                         onEditRider = onEditRiderClick,
                         onDeleteRider = { riderPendingDelete = it },
                         onToggleRiderEnabled = onToggleRiderEnabled
+                    )
+                }
+                4 -> {
+                    // Payment Methods Configuration Tab
+                    AdminPaymentSettingsTab(
+                        paymentSettings = paymentSettings,
+                        onUpdatePaymentSettings = onUpdatePaymentSettings
                     )
                 }
             }
@@ -1959,10 +1990,13 @@ data class IncomeHistoryRecord(
 fun AdminAnalyticsDashboard(
     orders: List<Order>,
     menuItems: List<MenuItem>,
+    customerUsageStats: List<CustomerUsageStats> = emptyList(),
     isRefreshing: Boolean,
     onRefreshClick: () -> Unit
 ) {
-    var selectedBreakdownTab by remember { mutableIntStateOf(0) } // 0: Daily, 1: Monthly, 2: Yearly, 3: Payment & Items
+    var selectedBreakdownTab by remember { mutableIntStateOf(0) } // 0: Daily, 1: Monthly, 2: Yearly, 3: Payments, 4: Customers
+    var customerSearchQuery by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     // Calculate Dates and Calendars
     val todayCal = Calendar.getInstance().apply {
@@ -2269,6 +2303,17 @@ fun AdminAnalyticsDashboard(
                         ),
                         modifier = Modifier.weight(1f)
                     )
+                    FilterChip(
+                        selected = selectedBreakdownTab == 4,
+                        onClick = { selectedBreakdownTab = 4 },
+                        label = { Text("👥 Customers (${customerUsageStats.size})", fontSize = 11.5.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PolishPrimaryRed,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1.3f)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -2367,6 +2412,284 @@ fun AdminAnalyticsDashboard(
                                     barColor = Color(0xFF00897B)
                                 )
                             }
+                        }
+                    }
+                }
+            }
+            4 -> {
+                // CUSTOMER USAGE & ACTIVITY STATS
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Customer App Usage & Insights 👥",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = PolishTextDark
+                                        )
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = PolishPrimaryContainerSubtle
+                                    ) {
+                                        Text(
+                                            text = "${customerUsageStats.size} Users",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                color = PolishPrimaryRed,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "کسٹمرز کی کل خریداری، آرڈرز کی تعداد اور فون نمبرز کی لائیو تفصیل",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted, fontSize = 11.5.sp)
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                OutlinedTextField(
+                                    value = customerSearchQuery,
+                                    onValueChange = { customerSearchQuery = it },
+                                    placeholder = { Text("Search customer by name, phone or address...", fontSize = 12.sp) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PolishTextMuted) },
+                                    trailingIcon = {
+                                        if (customerSearchQuery.isNotBlank()) {
+                                            IconButton(onClick = { customerSearchQuery = "" }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = PolishTextMuted)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = PolishBgLight,
+                                        unfocusedContainerColor = PolishBgLight,
+                                        focusedBorderColor = PolishPrimaryRed,
+                                        unfocusedBorderColor = PolishBorder
+                                    ),
+                                    singleLine = true
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                }
+
+                val filteredCustomers = if (customerSearchQuery.isBlank()) {
+                    customerUsageStats
+                } else {
+                    val q = customerSearchQuery.trim().lowercase()
+                    customerUsageStats.filter {
+                        it.name.lowercase().contains(q) ||
+                        it.phone.lowercase().contains(q) ||
+                        it.customerKey.lowercase().contains(q) ||
+                        it.lastOrderSummary.lowercase().contains(q)
+                    }
+                }
+
+                if (filteredCustomers.isEmpty()) {
+                    item {
+                        EmptyDashboardRecordsCard(
+                            if (customerSearchQuery.isBlank()) "No customer orders recorded yet."
+                            else "No customers matched '$customerSearchQuery'"
+                        )
+                    }
+                } else {
+                    items(filteredCustomers, key = { it.customerKey }) { customer ->
+                        CustomerUsageCard(
+                            customer = customer,
+                            onWhatsAppClick = { phone ->
+                                try {
+                                    val clean = phone.replace("+", "").replace("-", "").replace(" ", "").trim()
+                                    val formatted = if (clean.startsWith("0")) "92" + clean.substring(1) else clean
+                                    val uri = Uri.parse("https://wa.me/$formatted?text=${Uri.encode("Assalam-o-Alaikum ${customer.name}, greeting from Slice Smile Pizza!")}")
+                                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    // fallback
+                                }
+                            },
+                            onCallClick = { phone ->
+                                try {
+                                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    // fallback
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomerUsageCard(
+    customer: CustomerUsageStats,
+    onWhatsAppClick: (String) -> Unit,
+    onCallClick: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = PolishPrimaryContainerSubtle,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = if (customer.name.isNotBlank()) customer.name.take(1).uppercase() else "👤",
+                                fontWeight = FontWeight.Bold,
+                                color = PolishPrimaryRed,
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = customer.name.ifBlank { "Customer" },
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = PolishTextDark
+                            )
+                        )
+                        Text(
+                            text = "📞 ${customer.phone.ifBlank { "No Phone" }}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = PolishTextMuted,
+                                fontSize = 11.5.sp
+                            )
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFE8F5E9),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA5D6A7))
+                ) {
+                    Text(
+                        text = "Rs. ${customer.totalSpent}",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Black
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            if (customer.lastOrderSummary.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        imageVector = Icons.Default.LocalPizza,
+                        contentDescription = null,
+                        tint = PolishPrimaryRed,
+                        modifier = Modifier.size(15.dp).padding(top = 2.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = customer.lastOrderSummary,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = PolishTextMuted,
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = PolishBorder, thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "Orders Placed: ${customer.totalOrders}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = PolishTextDark,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    )
+                    if (customer.lastOrderTimestamp > 0) {
+                        val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+                        Text(
+                            text = "Last: ${sdf.format(Date(customer.lastOrderTimestamp))}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = PolishTextMuted,
+                                fontSize = 10.sp
+                            )
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (customer.phone.isNotBlank()) {
+                        IconButton(
+                            onClick = { onWhatsAppClick(customer.phone) },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color(0xFF25D366), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = "WhatsApp",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { onCallClick(customer.phone) },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(PolishPrimaryRed, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Call",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }
@@ -2561,6 +2884,403 @@ private fun EmptyDashboardRecordsCard(message: String) {
                     fontWeight = FontWeight.Medium
                 )
             )
+        }
+    }
+}
+
+@Composable
+fun AdminPaymentSettingsTab(
+    paymentSettings: PaymentSettings,
+    onUpdatePaymentSettings: (PaymentSettings) -> Unit
+) {
+    var isCodEnabled by remember(paymentSettings) { mutableStateOf(paymentSettings.isCodEnabled) }
+    var isEasypaisaEnabled by remember(paymentSettings) { mutableStateOf(paymentSettings.isEasypaisaEnabled) }
+    var easypaisaNumber by remember(paymentSettings) { mutableStateOf(paymentSettings.easypaisaNumber) }
+    var easypaisaTitle by remember(paymentSettings) { mutableStateOf(paymentSettings.easypaisaTitle) }
+
+    var isJazzcashEnabled by remember(paymentSettings) { mutableStateOf(paymentSettings.isJazzcashEnabled) }
+    var jazzcashNumber by remember(paymentSettings) { mutableStateOf(paymentSettings.jazzcashNumber) }
+    var jazzcashTitle by remember(paymentSettings) { mutableStateOf(paymentSettings.jazzcashTitle) }
+
+    var isBankEnabled by remember(paymentSettings) { mutableStateOf(paymentSettings.isBankTransferEnabled) }
+    var bankName by remember(paymentSettings) { mutableStateOf(paymentSettings.bankName) }
+    var bankTitle by remember(paymentSettings) { mutableStateOf(paymentSettings.bankAccountTitle) }
+    var bankIban by remember(paymentSettings) { mutableStateOf(paymentSettings.bankIban) }
+
+    var showSaveSuccess by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(PolishBgLight)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0xFFE8F5E9), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("💳", fontSize = 20.sp)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Payment Gateways & Accounts",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = PolishTextDark
+                                )
+                            )
+                            Text(
+                                text = "Enable/disable payment methods and configure recipient numbers",
+                                style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1. CASH ON DELIVERY (COD)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFFFFF3E0), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("💵", fontSize = 18.sp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Cash on Delivery (COD)",
+                                    fontWeight = FontWeight.Bold,
+                                    color = PolishTextDark,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = if (isCodEnabled) "Active for all customers" else "Disabled",
+                                    color = if (isCodEnabled) Color(0xFF2E7D32) else PolishTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isCodEnabled,
+                            onCheckedChange = { isCodEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF2E7D32)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. EASYPAISA SETTINGS
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFFE8F5E9), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🟢", fontSize = 18.sp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Easypaisa Account",
+                                    fontWeight = FontWeight.Bold,
+                                    color = PolishTextDark,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = if (isEasypaisaEnabled) "Active in Checkout" else "Disabled",
+                                    color = if (isEasypaisaEnabled) Color(0xFF2E7D32) else PolishTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isEasypaisaEnabled,
+                            onCheckedChange = { isEasypaisaEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF00C853)
+                            )
+                        )
+                    }
+
+                    if (isEasypaisaEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = PolishBorder, thickness = 0.8.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = easypaisaNumber,
+                            onValueChange = { easypaisaNumber = it },
+                            label = { Text("Easypaisa Mobile Number") },
+                            placeholder = { Text("e.g. 0325-4946190") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = easypaisaTitle,
+                            onValueChange = { easypaisaTitle = it },
+                            label = { Text("Account Title / Name") },
+                            placeholder = { Text("e.g. Slice Smile / Tariq Mahmood") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. JAZZCASH SETTINGS
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFFFFEBEE), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🔴", fontSize = 18.sp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "JazzCash Account",
+                                    fontWeight = FontWeight.Bold,
+                                    color = PolishTextDark,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = if (isJazzcashEnabled) "Active in Checkout" else "Disabled",
+                                    color = if (isJazzcashEnabled) Color(0xFFD32F2F) else PolishTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isJazzcashEnabled,
+                            onCheckedChange = { isJazzcashEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFFD32F2F)
+                            )
+                        )
+                    }
+
+                    if (isJazzcashEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = PolishBorder, thickness = 0.8.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = jazzcashNumber,
+                            onValueChange = { jazzcashNumber = it },
+                            label = { Text("JazzCash Mobile Number") },
+                            placeholder = { Text("e.g. 0303-7448255") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = jazzcashTitle,
+                            onValueChange = { jazzcashTitle = it },
+                            label = { Text("Account Title / Name") },
+                            placeholder = { Text("e.g. Slice Smile Pizza") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. BANK TRANSFER SETTINGS
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFFEDE7F6), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🏦", fontSize = 18.sp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Direct Bank Transfer",
+                                    fontWeight = FontWeight.Bold,
+                                    color = PolishTextDark,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = if (isBankEnabled) "Active in Checkout" else "Disabled",
+                                    color = if (isBankEnabled) Color(0xFF512DA8) else PolishTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isBankEnabled,
+                            onCheckedChange = { isBankEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF512DA8)
+                            )
+                        )
+                    }
+
+                    if (isBankEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = PolishBorder, thickness = 0.8.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = bankName,
+                            onValueChange = { bankName = it },
+                            label = { Text("Bank Name") },
+                            placeholder = { Text("e.g. Meezan Bank Ltd") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = bankTitle,
+                            onValueChange = { bankTitle = it },
+                            label = { Text("Account Title") },
+                            placeholder = { Text("e.g. Slice Smile Pizza") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = bankIban,
+                            onValueChange = { bankIban = it },
+                            label = { Text("IBAN / Account Number") },
+                            placeholder = { Text("e.g. PK36MEZN0001234567890101") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+        }
+
+        // SAVE BUTTON
+        item {
+            Button(
+                onClick = {
+                    val updated = PaymentSettings(
+                        isCodEnabled = isCodEnabled,
+                        isEasypaisaEnabled = isEasypaisaEnabled,
+                        easypaisaNumber = easypaisaNumber.trim(),
+                        easypaisaTitle = easypaisaTitle.trim(),
+                        isJazzcashEnabled = isJazzcashEnabled,
+                        jazzcashNumber = jazzcashNumber.trim(),
+                        jazzcashTitle = jazzcashTitle.trim(),
+                        isBankTransferEnabled = isBankEnabled,
+                        bankName = bankName.trim(),
+                        bankAccountTitle = bankTitle.trim(),
+                        bankIban = bankIban.trim()
+                    )
+                    onUpdatePaymentSettings(updated)
+                    showSaveSuccess = true
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("save_payment_settings_button"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed)
+            ) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Save Payment Settings",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = Color.White
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

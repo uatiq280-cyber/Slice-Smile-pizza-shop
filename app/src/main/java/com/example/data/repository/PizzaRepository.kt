@@ -16,6 +16,7 @@ import com.example.model.MenuItem
 import com.example.model.Order
 import com.example.model.OrderStatus
 import com.example.model.PaymentMethod
+import com.example.model.PaymentSettings
 import com.example.model.Rider
 import com.example.model.UserSession
 import com.example.service.NotificationHelper
@@ -132,10 +133,12 @@ class PizzaRepository(
             listenToFirestoreOrders()
             listenToFirestoreRiders()
             listenToFirestoreFeedback()
+            listenToFirestorePaymentSettings()
             // Initial fetch to load existing cloud orders and admin credentials immediately
             repositoryScope.launch {
                 refreshOrdersFromCloud()
                 syncAdminCredentialsFromCloud()
+                syncPaymentSettingsFromCloud()
             }
             Log.d("PizzaRepository", "Firestore listeners and initial fetch initialized successfully.")
         } catch (e: Exception) {
@@ -528,6 +531,59 @@ class PizzaRepository(
         }
     }
 
+    private fun listenToFirestorePaymentSettings() {
+        try {
+            val db = getDb()
+            db.collection("admin_config").document("payment_settings")
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.w("PizzaRepository", "Firestore payment settings listener notice: ${error.message}")
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null && snapshot.exists()) {
+                        repositoryScope.launch(Dispatchers.IO) {
+                            snapshot.getBoolean("isCodEnabled")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_cod_enabled", it.toString()))
+                            }
+                            snapshot.getBoolean("isEasypaisaEnabled")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_easypaisa_enabled", it.toString()))
+                            }
+                            snapshot.getString("easypaisaNumber")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_easypaisa_number", it))
+                            }
+                            snapshot.getString("easypaisaTitle")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_easypaisa_title", it))
+                            }
+                            snapshot.getBoolean("isJazzcashEnabled")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_jazzcash_enabled", it.toString()))
+                            }
+                            snapshot.getString("jazzcashNumber")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_jazzcash_number", it))
+                            }
+                            snapshot.getString("jazzcashTitle")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_jazzcash_title", it))
+                            }
+                            snapshot.getBoolean("isBankTransferEnabled")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_bank_enabled", it.toString()))
+                            }
+                            snapshot.getString("bankName")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_bank_name", it))
+                            }
+                            snapshot.getString("bankAccountTitle")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_bank_title", it))
+                            }
+                            snapshot.getString("bankIban")?.let {
+                                adminDao.setConfig(AdminConfigEntity("pay_bank_iban", it))
+                            }
+                            Log.d("PizzaRepository", "Payment settings updated from Cloud Firestore")
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Payment settings listener setup error: ${e.message}")
+        }
+    }
+
     // ================= ORDER QUERIES =================
     val allOrders: Flow<List<Order>> = orderDao.getAllOrders().map { list ->
         list.map { it.toDomain() }
@@ -547,6 +603,10 @@ class PizzaRepository(
 
     val allRiders: Flow<List<Rider>> = riderDao.getAllRidersFlow().map { list ->
         list.map { it.toDomain() }
+    }
+
+    suspend fun getAllRidersOnce(): List<Rider> = withContext(Dispatchers.IO) {
+        riderDao.getAllRiders().map { it.toDomain() }
     }
 
     val userSessionFlow: Flow<UserSession> = userSessionDao.getUserSessionFlow().map { entity ->
@@ -570,6 +630,81 @@ class PizzaRepository(
     }
 
     val customMenuItemsFlow: Flow<List<CustomMenuItemEntity>> = customMenuItemDao.getAllCustomMenuItemsFlow()
+
+    val paymentSettingsFlow: Flow<PaymentSettings> = adminDao.getAllConfigsFlow().map { configs ->
+        val configMap = configs.associate { it.key to it.value }
+        PaymentSettings(
+            isCodEnabled = configMap["pay_cod_enabled"]?.toBooleanStrictOrNull() ?: true,
+            isEasypaisaEnabled = configMap["pay_easypaisa_enabled"]?.toBooleanStrictOrNull() ?: true,
+            easypaisaNumber = configMap["pay_easypaisa_number"] ?: "03254946190",
+            easypaisaTitle = configMap["pay_easypaisa_title"] ?: "Slice Smile Pizza / Tariq Mahmood",
+            isJazzcashEnabled = configMap["pay_jazzcash_enabled"]?.toBooleanStrictOrNull() ?: true,
+            jazzcashNumber = configMap["pay_jazzcash_number"] ?: "03037448255",
+            jazzcashTitle = configMap["pay_jazzcash_title"] ?: "Slice Smile Pizza",
+            isBankTransferEnabled = configMap["pay_bank_enabled"]?.toBooleanStrictOrNull() ?: true,
+            bankName = configMap["pay_bank_name"] ?: "Meezan Bank Ltd",
+            bankAccountTitle = configMap["pay_bank_title"] ?: "Slice Smile Pizza",
+            bankIban = configMap["pay_bank_iban"] ?: "PK36MEZN0001234567890101"
+        )
+    }
+
+    suspend fun savePaymentSettings(settings: PaymentSettings) = withContext(Dispatchers.IO) {
+        adminDao.setConfig(AdminConfigEntity("pay_cod_enabled", settings.isCodEnabled.toString()))
+        adminDao.setConfig(AdminConfigEntity("pay_easypaisa_enabled", settings.isEasypaisaEnabled.toString()))
+        adminDao.setConfig(AdminConfigEntity("pay_easypaisa_number", settings.easypaisaNumber))
+        adminDao.setConfig(AdminConfigEntity("pay_easypaisa_title", settings.easypaisaTitle))
+        adminDao.setConfig(AdminConfigEntity("pay_jazzcash_enabled", settings.isJazzcashEnabled.toString()))
+        adminDao.setConfig(AdminConfigEntity("pay_jazzcash_number", settings.jazzcashNumber))
+        adminDao.setConfig(AdminConfigEntity("pay_jazzcash_title", settings.jazzcashTitle))
+        adminDao.setConfig(AdminConfigEntity("pay_bank_enabled", settings.isBankTransferEnabled.toString()))
+        adminDao.setConfig(AdminConfigEntity("pay_bank_name", settings.bankName))
+        adminDao.setConfig(AdminConfigEntity("pay_bank_title", settings.bankAccountTitle))
+        adminDao.setConfig(AdminConfigEntity("pay_bank_iban", settings.bankIban))
+
+        try {
+            val db = getDb()
+            val map = hashMapOf(
+                "isCodEnabled" to settings.isCodEnabled,
+                "isEasypaisaEnabled" to settings.isEasypaisaEnabled,
+                "easypaisaNumber" to settings.easypaisaNumber,
+                "easypaisaTitle" to settings.easypaisaTitle,
+                "isJazzcashEnabled" to settings.isJazzcashEnabled,
+                "jazzcashNumber" to settings.jazzcashNumber,
+                "jazzcashTitle" to settings.jazzcashTitle,
+                "isBankTransferEnabled" to settings.isBankTransferEnabled,
+                "bankName" to settings.bankName,
+                "bankAccountTitle" to settings.bankAccountTitle,
+                "bankIban" to settings.bankIban,
+                "updatedAt" to System.currentTimeMillis()
+            )
+            db.collection("admin_config").document("payment_settings").set(map)
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Payment settings cloud sync notice: ${e.message}")
+        }
+    }
+
+    suspend fun syncPaymentSettingsFromCloud() = withContext(Dispatchers.IO) {
+        try {
+            val db = getDb()
+            val doc = com.google.android.gms.tasks.Tasks.await(db.collection("admin_config").document("payment_settings").get())
+            if (doc != null && doc.exists()) {
+                doc.getBoolean("isCodEnabled")?.let { adminDao.setConfig(AdminConfigEntity("pay_cod_enabled", it.toString())) }
+                doc.getBoolean("isEasypaisaEnabled")?.let { adminDao.setConfig(AdminConfigEntity("pay_easypaisa_enabled", it.toString())) }
+                doc.getString("easypaisaNumber")?.let { adminDao.setConfig(AdminConfigEntity("pay_easypaisa_number", it)) }
+                doc.getString("easypaisaTitle")?.let { adminDao.setConfig(AdminConfigEntity("pay_easypaisa_title", it)) }
+                doc.getBoolean("isJazzcashEnabled")?.let { adminDao.setConfig(AdminConfigEntity("pay_jazzcash_enabled", it.toString())) }
+                doc.getString("jazzcashNumber")?.let { adminDao.setConfig(AdminConfigEntity("pay_jazzcash_number", it)) }
+                doc.getString("jazzcashTitle")?.let { adminDao.setConfig(AdminConfigEntity("pay_jazzcash_title", it)) }
+                doc.getBoolean("isBankTransferEnabled")?.let { adminDao.setConfig(AdminConfigEntity("pay_bank_enabled", it.toString())) }
+                doc.getString("bankName")?.let { adminDao.setConfig(AdminConfigEntity("pay_bank_name", it)) }
+                doc.getString("bankAccountTitle")?.let { adminDao.setConfig(AdminConfigEntity("pay_bank_title", it)) }
+                doc.getString("bankIban")?.let { adminDao.setConfig(AdminConfigEntity("pay_bank_iban", it)) }
+                Log.d("PizzaRepository", "Payment settings synced from Cloud Firestore on startup")
+            }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Notice: Payment settings cloud sync: ${e.message}")
+        }
+    }
 
     suspend fun saveUserSession(session: UserSession) {
         userSessionDao.saveUserSession(UserSessionEntity.fromDomain(session))

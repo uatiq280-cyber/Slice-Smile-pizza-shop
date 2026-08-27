@@ -10,12 +10,14 @@ import com.example.data.repository.PizzaRepository
 import com.example.model.AuthType
 import com.example.model.CartItem
 import com.example.model.CustomerFeedback
+import com.example.model.CustomerUsageStats
 import com.example.model.LoyaltyProfile
 import com.example.model.MenuCategory
 import com.example.model.MenuItem
 import com.example.model.Order
 import com.example.model.OrderStatus
 import com.example.model.PaymentMethod
+import com.example.model.PaymentSettings
 import com.example.model.PortionSize
 import com.example.model.Rider
 import com.example.model.UserRole
@@ -54,6 +56,30 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             if (isPersistentAdmin) {
                 _isAdminLoggedIn.value = true
                 repository.setAdminActive(true)
+            }
+            val persistentRiderId = repository.getAdminConfig("rider_persistent_id")
+            if (!persistentRiderId.isNullOrBlank()) {
+                val riders = repository.getAllRidersOnce()
+                val matched = riders.find { it.id == persistentRiderId }
+                if (matched != null && matched.isEnabled) {
+                    _currentRider.value = matched
+                    _isRiderLoggedIn.value = true
+                }
+            }
+        }
+        viewModelScope.launch {
+            repository.userSessionFlow.collect { session ->
+                if (session.name.isNotBlank() && session.name != "Guest Foodie") {
+                    if (_customerName.value.isBlank() || _customerName.value == "Guest Foodie") {
+                        _customerName.value = session.name
+                    }
+                }
+                if (session.phone.isNotBlank() && _customerPhone.value.isBlank()) {
+                    _customerPhone.value = session.phone
+                }
+                if (session.deliveryAddress.isNotBlank()) {
+                    _deliveryAddress.value = session.deliveryAddress
+                }
             }
         }
     }
@@ -177,7 +203,34 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     val ownerId: StateFlow<String> = repository.ownerIdFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Owner@slicesmile.com")
 
-    private val _isShowingRoleSelector = MutableStateFlow(true)
+    val paymentSettings: StateFlow<PaymentSettings> = repository.paymentSettingsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PaymentSettings())
+
+    val customerUsageStats: StateFlow<List<CustomerUsageStats>> = ordersList.map { orders ->
+        val map = LinkedHashMap<String, MutableList<Order>>()
+        for (o in orders) {
+            val key = if (o.customerPhone.isNotBlank()) o.customerPhone.trim() else o.customerName.trim()
+            if (key.isNotBlank()) {
+                map.getOrPut(key) { mutableListOf() }.add(o)
+            }
+        }
+        map.map { (key, customerOrders) ->
+            val latest = customerOrders.maxByOrNull { it.timestamp } ?: customerOrders.first()
+            val validOrders = customerOrders.filter { it.status != OrderStatus.CANCELLED }
+            CustomerUsageStats(
+                customerKey = key,
+                name = latest.customerName.ifBlank { "Customer ($key)" },
+                phone = latest.customerPhone,
+                totalOrders = customerOrders.size,
+                totalSpent = validOrders.sumOf { it.totalAmount },
+                lastOrderTimestamp = latest.timestamp,
+                lastOrderStatus = latest.status,
+                lastOrderSummary = latest.itemsSummary
+            )
+        }.sortedByDescending { it.lastOrderTimestamp }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _isShowingRoleSelector = MutableStateFlow(false)
     val isShowingRoleSelector: StateFlow<Boolean> = _isShowingRoleSelector.asStateFlow()
 
     private val _isAdminLoggedIn = MutableStateFlow(false)
@@ -758,6 +811,13 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun updatePaymentSettings(settings: PaymentSettings) {
+        viewModelScope.launch {
+            repository.savePaymentSettings(settings)
+            _eventFlow.emit(UiEvent.ShowToast("Payment methods & account details updated successfully! 💳"))
+        }
+    }
+
     fun changeOwnerCredentials(currentPin: String, newOwnerId: String, newPin: String): Boolean {
         if (currentPin.trim() != adminPin.value.trim()) {
             viewModelScope.launch {
@@ -850,6 +910,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
             _isRiderLoggedIn.value = true
             _isShowingRiderLogin.value = false
             viewModelScope.launch {
+                repository.setAdminConfig("rider_persistent_id", matched.id)
                 val session = UserSession(
                     userId = matched.id,
                     name = matched.name,
@@ -873,6 +934,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         _isRiderLoggedIn.value = false
         _currentRider.value = null
         viewModelScope.launch {
+            repository.setAdminConfig("rider_persistent_id", "")
             val guestSession = UserSession(name = "Guest Foodie", authType = AuthType.GUEST, role = UserRole.CUSTOMER)
             repository.saveUserSession(guestSession)
             _eventFlow.emit(UiEvent.ShowToast("Logged out of Rider Portal 🚪"))

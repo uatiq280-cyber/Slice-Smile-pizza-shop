@@ -60,6 +60,9 @@ interface RiderDao {
     @Query("SELECT * FROM riders ORDER BY name ASC")
     fun getAllRidersFlow(): Flow<List<RiderEntity>>
 
+    @Query("SELECT * FROM riders ORDER BY name ASC")
+    suspend fun getAllRiders(): List<RiderEntity>
+
     @Query("SELECT * FROM riders WHERE id = :id LIMIT 1")
     suspend fun getRiderById(id: String): RiderEntity?
 

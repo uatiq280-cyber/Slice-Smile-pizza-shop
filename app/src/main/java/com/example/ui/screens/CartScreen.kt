@@ -67,6 +67,7 @@ import com.example.model.CartItem
 import com.example.model.LoyaltyProfile
 import com.example.model.Order
 import com.example.model.PaymentMethod
+import com.example.model.PaymentSettings
 import com.example.ui.components.WhatsAppOrderHelper
 import com.example.ui.theme.PolishBgLight
 import com.example.ui.theme.PolishBorder
@@ -98,6 +99,7 @@ fun CartScreen(
     orderNote: String,
     selectedPaymentMethod: PaymentMethod,
     easypaisaTrxId: String,
+    paymentSettings: PaymentSettings = PaymentSettings(),
     onQuantityDelta: (String, Int) -> Unit,
     onRemoveItem: (String) -> Unit,
     onToggleCoinsDiscount: () -> Unit,
@@ -412,111 +414,232 @@ fun CartScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // COD Option (Styled as per Professional Polish)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(
-                                if (selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY) PolishPrimaryContainerSubtle
-                                else PolishBgLight
-                            )
-                            .border(
-                                width = if (selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY) 2.dp else 1.dp,
-                                color = if (selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY) PolishPrimaryRed else PolishBorder,
-                                shape = RoundedCornerShape(18.dp)
-                            )
-                            .clickable { onPaymentMethodChanged(PaymentMethod.CASH_ON_DELIVERY) }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY,
-                            onClick = { onPaymentMethodChanged(PaymentMethod.CASH_ON_DELIVERY) },
-                            colors = RadioButtonDefaults.colors(selectedColor = PolishPrimaryRed)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Payments,
-                            contentDescription = null,
-                            tint = PolishPrimaryRed,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Cash on Delivery (COD)",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = PolishMaroonDark
+                    // 1. Cash on Delivery (if enabled)
+                    if (paymentSettings.isCodEnabled) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    if (selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY) PolishPrimaryContainerSubtle
+                                    else PolishBgLight
                                 )
+                                .border(
+                                    width = if (selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY) 2.dp else 1.dp,
+                                    color = if (selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY) PolishPrimaryRed else PolishBorder,
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+                                .clickable { onPaymentMethodChanged(PaymentMethod.CASH_ON_DELIVERY) }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedPaymentMethod == PaymentMethod.CASH_ON_DELIVERY,
+                                onClick = { onPaymentMethodChanged(PaymentMethod.CASH_ON_DELIVERY) },
+                                colors = RadioButtonDefaults.colors(selectedColor = PolishPrimaryRed)
                             )
-                            Text(
-                                text = "Pay cash when rider delivers to your doorstep",
-                                style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = PolishPrimaryRed,
+                                modifier = Modifier.size(24.dp)
                             )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Cash on Delivery (COD)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = PolishMaroonDark
+                                    )
+                                )
+                                Text(
+                                    text = "Pay cash when rider delivers to your doorstep",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
+                                )
+                            }
                         }
+                        Spacer(modifier = Modifier.height(10.dp))
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Easypaisa Option (Styled as per Professional Polish)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(
-                                if (selectedPaymentMethod == PaymentMethod.EASYPAISA) PolishPrimaryContainer
-                                else PolishBgLight
-                            )
-                            .border(
-                                width = if (selectedPaymentMethod == PaymentMethod.EASYPAISA) 2.dp else 1.dp,
-                                color = if (selectedPaymentMethod == PaymentMethod.EASYPAISA) PolishPrimaryRed else PolishBorder,
-                                shape = RoundedCornerShape(18.dp)
-                            )
-                            .clickable { onPaymentMethodChanged(PaymentMethod.EASYPAISA) }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedPaymentMethod == PaymentMethod.EASYPAISA,
-                            onClick = { onPaymentMethodChanged(PaymentMethod.EASYPAISA) },
-                            colors = RadioButtonDefaults.colors(selectedColor = PolishPrimaryRed)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.AccountBalanceWallet,
-                            contentDescription = null,
-                            tint = PolishPrimaryRed,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "03254946190 EasyPaisa",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = PolishMaroonDark
+                    // 2. Easypaisa Option (if enabled)
+                    if (paymentSettings.isEasypaisaEnabled) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    if (selectedPaymentMethod == PaymentMethod.EASYPAISA) PolishPrimaryContainer
+                                    else PolishBgLight
                                 )
+                                .border(
+                                    width = if (selectedPaymentMethod == PaymentMethod.EASYPAISA) 2.dp else 1.dp,
+                                    color = if (selectedPaymentMethod == PaymentMethod.EASYPAISA) PolishPrimaryRed else PolishBorder,
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+                                .clickable { onPaymentMethodChanged(PaymentMethod.EASYPAISA) }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedPaymentMethod == PaymentMethod.EASYPAISA,
+                                onClick = { onPaymentMethodChanged(PaymentMethod.EASYPAISA) },
+                                colors = RadioButtonDefaults.colors(selectedColor = PolishPrimaryRed)
                             )
-                            Text(
-                                text = "Online direct mobile payment",
-                                style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = com.example.ui.theme.EasypaisaGreen,
+                                modifier = Modifier.size(24.dp)
                             )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${paymentSettings.easypaisaNumber} EasyPaisa",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = PolishMaroonDark
+                                    )
+                                )
+                                Text(
+                                    text = "Title: ${paymentSettings.easypaisaTitle}",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
+                                )
+                            }
+                            if (selectedPaymentMethod == PaymentMethod.EASYPAISA) {
+                                OutlinedButton(
+                                    onClick = onOpenEasypaisaModal,
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, PolishPrimaryRed),
+                                    modifier = Modifier.testTag("open_easypaisa_details_btn")
+                                ) {
+                                    Text("Pay Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PolishPrimaryRed)
+                                }
+                            }
                         }
-                        if (selectedPaymentMethod == PaymentMethod.EASYPAISA) {
-                            OutlinedButton(
-                                onClick = onOpenEasypaisaModal,
-                                shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PolishPrimaryRed),
-                                modifier = Modifier.testTag("open_easypaisa_details_btn")
-                            ) {
-                                Text("Pay Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PolishPrimaryRed)
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
+                    // 3. JazzCash Option (if enabled)
+                    if (paymentSettings.isJazzcashEnabled) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    if (selectedPaymentMethod == PaymentMethod.JAZZCASH) PolishPrimaryContainer
+                                    else PolishBgLight
+                                )
+                                .border(
+                                    width = if (selectedPaymentMethod == PaymentMethod.JAZZCASH) 2.dp else 1.dp,
+                                    color = if (selectedPaymentMethod == PaymentMethod.JAZZCASH) PolishPrimaryRed else PolishBorder,
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+                                .clickable { onPaymentMethodChanged(PaymentMethod.JAZZCASH) }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedPaymentMethod == PaymentMethod.JAZZCASH,
+                                onClick = { onPaymentMethodChanged(PaymentMethod.JAZZCASH) },
+                                colors = RadioButtonDefaults.colors(selectedColor = PolishPrimaryRed)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${paymentSettings.jazzcashNumber} JazzCash",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = PolishMaroonDark
+                                    )
+                                )
+                                Text(
+                                    text = "Title: ${paymentSettings.jazzcashTitle}",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
+                                )
+                            }
+                            if (selectedPaymentMethod == PaymentMethod.JAZZCASH) {
+                                OutlinedButton(
+                                    onClick = onOpenEasypaisaModal,
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, PolishPrimaryRed),
+                                    modifier = Modifier.testTag("open_jazzcash_details_btn")
+                                ) {
+                                    Text("Pay Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PolishPrimaryRed)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
+                    // 4. Bank Transfer / Raast Option (if enabled)
+                    if (paymentSettings.isBankTransferEnabled) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    if (selectedPaymentMethod == PaymentMethod.BANK_TRANSFER) PolishPrimaryContainer
+                                    else PolishBgLight
+                                )
+                                .border(
+                                    width = if (selectedPaymentMethod == PaymentMethod.BANK_TRANSFER) 2.dp else 1.dp,
+                                    color = if (selectedPaymentMethod == PaymentMethod.BANK_TRANSFER) PolishPrimaryRed else PolishBorder,
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+                                .clickable { onPaymentMethodChanged(PaymentMethod.BANK_TRANSFER) }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedPaymentMethod == PaymentMethod.BANK_TRANSFER,
+                                onClick = { onPaymentMethodChanged(PaymentMethod.BANK_TRANSFER) },
+                                colors = RadioButtonDefaults.colors(selectedColor = PolishPrimaryRed)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = Color(0xFF1565C0),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${paymentSettings.bankName} (Raast / IBAN)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = PolishMaroonDark
+                                    )
+                                )
+                                Text(
+                                    text = "IBAN: ${paymentSettings.bankIban}",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
+                                )
+                            }
+                            if (selectedPaymentMethod == PaymentMethod.BANK_TRANSFER) {
+                                OutlinedButton(
+                                    onClick = onOpenEasypaisaModal,
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, PolishPrimaryRed),
+                                    modifier = Modifier.testTag("open_bank_details_btn")
+                                ) {
+                                    Text("Pay Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PolishPrimaryRed)
+                                }
                             }
                         }
                     }
 
-                    if (selectedPaymentMethod == PaymentMethod.EASYPAISA && easypaisaTrxId.isNotBlank()) {
+                    if (selectedPaymentMethod != PaymentMethod.CASH_ON_DELIVERY && easypaisaTrxId.isNotBlank()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -525,7 +648,7 @@ fun CartScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
                         ) {
                             Text(
-                                text = "✅ TRX ID Recorded: $easypaisaTrxId",
+                                text = "✅ Online TRX ID Recorded: $easypaisaTrxId",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = PolishPrimaryRed,
                                     fontWeight = FontWeight.Bold

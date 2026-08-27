@@ -163,6 +163,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
 
     val loyaltyProfile by viewModel.loyaltyProfile.collectAsState()
     val customerReviews by viewModel.customerReviews.collectAsState()
+    val paymentSettings by viewModel.paymentSettings.collectAsState()
+    val customerUsageStats by viewModel.customerUsageStats.collectAsState()
 
     // Role Selector & Admin & Menu Management States
     val isShowingRoleSelector by viewModel.isShowingRoleSelector.collectAsState()
@@ -373,6 +375,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                         orderNote = orderNote,
                         selectedPaymentMethod = selectedPaymentMethod,
                         easypaisaTrxId = easypaisaTrxId,
+                        paymentSettings = paymentSettings,
                         onQuantityDelta = viewModel::updateCartItemQuantity,
                         onRemoveItem = viewModel::removeCartItem,
                         onToggleCoinsDiscount = viewModel::toggleCoinsDiscount,
@@ -462,6 +465,8 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             menuItems = allMenuItems,
                             orders = ordersList,
                             riders = allRiders,
+                            paymentSettings = paymentSettings,
+                            customerUsageStats = customerUsageStats,
                             cloudSyncStatus = cloudSyncStatus,
                             isRefreshingOrders = isRefreshingOrders,
                             onRefreshOrders = { viewModel.refreshOrdersFromCloud() },
@@ -472,6 +477,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             onToggleStock = { item, inStock -> viewModel.toggleItemStock(item, inStock) },
                             onResetDefaults = { viewModel.resetMenuToDefaults() },
                             onChangePinClick = { viewModel.showChangePinDialog(true) },
+                            onUpdatePaymentSettings = { settings -> viewModel.updatePaymentSettings(settings) },
                             onLogoutClick = {
                                 viewModel.logoutAdmin()
                                 navController.popBackStack(Screen.Menu.route, false)

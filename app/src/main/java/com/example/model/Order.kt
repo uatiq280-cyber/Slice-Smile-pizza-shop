@@ -6,7 +6,9 @@ import java.util.Locale
 
 enum class PaymentMethod(val title: String, val description: String) {
     CASH_ON_DELIVERY("Cash on Delivery (COD)", "Pay cash to the rider upon delivery"),
-    EASYPAISA("Easypaisa Online", "Transfer to 03254946190 & submit TRX ID")
+    EASYPAISA("Easypaisa Online", "Transfer to Easypaisa account & submit TRX ID"),
+    JAZZCASH("JazzCash Online", "Transfer to JazzCash account & submit TRX ID"),
+    BANK_TRANSFER("Bank Transfer / Raast", "Direct bank transfer & submit Ref ID")
 }
 
 enum class OrderStatus(
