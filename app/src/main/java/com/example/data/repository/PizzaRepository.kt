@@ -1084,4 +1084,18 @@ class PizzaRepository(
             Log.e("PizzaRepository", "Firestore submitFeedback error", e)
         }
     }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: PizzaRepository? = null
+
+        fun getInstance(context: Context): PizzaRepository {
+            return INSTANCE ?: synchronized(this) {
+                val db = AppDatabase.getDatabase(context.applicationContext)
+                val instance = PizzaRepository(context.applicationContext, db)
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
 }

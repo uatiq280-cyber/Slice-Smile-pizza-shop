@@ -32,7 +32,15 @@ class SliceSmileApp : Application() {
             Log.w("SliceSmileApp", "FirebaseApp init notice: ${e.message}")
         }
 
-        // 3. Setup Firebase Cloud Messaging (FCM) Topics (Only if Google Play Services is available)
+        // 3. Start Background Order Sync Service to keep Firestore listener active when phone is locked
+        try {
+            com.example.service.OrderBackgroundSyncService.startService(this)
+            Log.d("SliceSmileApp", "OrderBackgroundSyncService started")
+        } catch (e: Exception) {
+            Log.e("SliceSmileApp", "Error starting OrderBackgroundSyncService", e)
+        }
+
+        // 4. Setup Firebase Cloud Messaging (FCM) Topics (Only if Google Play Services is available)
         try {
             val playServicesAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
                 .isGooglePlayServicesAvailable(this)

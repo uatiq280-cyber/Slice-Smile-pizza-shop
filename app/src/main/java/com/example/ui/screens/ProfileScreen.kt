@@ -401,71 +401,7 @@ fun ProfileScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(18.dp))
-        }
-
-        // 4. Switch Portal / پورٹل تبدیل کریں (For Owner/Staff to switch mode)
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenAdminPortal() }
-                    .testTag("switch_portal_button"),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, PolishBorder)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(PolishPrimaryContainerSubtle),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Security,
-                                contentDescription = "Switch Portal",
-                                tint = PolishMaroonDark,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Switch Portal / پورٹل تبدیل کریں",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = PolishTextDark
-                                )
-                            )
-                            Text(
-                                text = "Admin / Owner Portal Login 🔒",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = PolishTextMuted,
-                                    fontSize = 11.sp
-                                )
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "Switch ➔",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            color = PolishPrimaryRed,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

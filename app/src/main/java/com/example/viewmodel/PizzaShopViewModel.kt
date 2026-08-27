@@ -48,8 +48,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     private val _ephemeralUserSession = MutableStateFlow<UserSession?>(null)
 
     init {
-        val db = AppDatabase.getDatabase(application)
-        repository = PizzaRepository(application, db)
+        repository = PizzaRepository.getInstance(application)
         viewModelScope.launch {
             repository.refreshOrdersFromCloud()
             val isPersistentAdmin = repository.getAdminConfig("admin_persistent_session") == "true"

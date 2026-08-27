@@ -269,8 +269,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             )
                         }
                 ) {
-                    val activeNavigationScreens = if (isAdminLoggedIn) navigationScreens + Screen.Admin else navigationScreens
-                    activeNavigationScreens.forEach { screen ->
+                    navigationScreens.forEach { screen ->
                         val isSelected = currentRoute == screen.route
                         NavigationBarItem(
                             selected = isSelected,
