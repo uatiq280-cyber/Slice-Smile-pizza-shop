@@ -8,12 +8,19 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.messaging.FirebaseMessaging
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
 class SliceSmileApp : Application() {
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Initialize Notification Channels
+        // 1. Initialize Notification Channels (and clear any previous sticky foreground service notifications)
         try {
             NotificationHelper.initNotificationChannels(this)
         } catch (e: Exception) {
@@ -32,12 +39,15 @@ class SliceSmileApp : Application() {
             Log.w("SliceSmileApp", "FirebaseApp init notice: ${e.message}")
         }
 
-        // 3. Start Background Order Sync Service to keep Firestore listener active when phone is locked
-        try {
-            com.example.service.OrderBackgroundSyncService.startService(this)
-            Log.d("SliceSmileApp", "OrderBackgroundSyncService started")
-        } catch (e: Exception) {
-            Log.e("SliceSmileApp", "Error starting OrderBackgroundSyncService", e)
+        // 3. Initialize PizzaRepository in background coroutine to keep Firestore order listeners active seamlessly
+        applicationScope.launch {
+            try {
+                val repository = com.example.data.repository.PizzaRepository.getInstance(this@SliceSmileApp)
+                repository.refreshOrdersFromCloud()
+                Log.d("SliceSmileApp", "Repository order listener activated seamlessly in background")
+            } catch (e: Exception) {
+                Log.e("SliceSmileApp", "Error initializing repository in app launch", e)
+            }
         }
 
         // 4. Setup Firebase Cloud Messaging (FCM) Topics (Only if Google Play Services is available)

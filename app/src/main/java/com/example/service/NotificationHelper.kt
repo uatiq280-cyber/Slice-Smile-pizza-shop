@@ -21,11 +21,16 @@ import com.example.model.Order
 object NotificationHelper {
     const val CHANNEL_ORDERS = "slice_smile_orders_channel_v2"
     const val CHANNEL_STATUS = "slice_smile_status_channel_v2"
-    const val CHANNEL_BACKGROUND_SERVICE = "slice_smile_bg_service_channel"
 
     fun initNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // Clear any old background sync service sticky notification if present
+            try {
+                notificationManager.cancel(9001)
+                notificationManager.deleteNotificationChannel("slice_smile_bg_service_channel")
+            } catch (_: Exception) {}
 
             val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val audioAttributes = AudioAttributes.Builder()
@@ -60,20 +65,8 @@ object NotificationHelper {
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
 
-            // 3. Low-priority Background Service Sync Channel
-            val serviceChannel = NotificationChannel(
-                CHANNEL_BACKGROUND_SERVICE,
-                "Order Sync Service",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Keeps real-time order notifications active in the background when phone is locked"
-                setShowBadge(false)
-                lockscreenVisibility = Notification.VISIBILITY_SECRET
-            }
-
             notificationManager.createNotificationChannel(orderChannel)
             notificationManager.createNotificationChannel(statusChannel)
-            notificationManager.createNotificationChannel(serviceChannel)
         }
     }
 
