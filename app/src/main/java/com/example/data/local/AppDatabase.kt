@@ -17,9 +17,10 @@ import kotlinx.coroutines.launch
         AdminConfigEntity::class,
         CustomMenuItemEntity::class,
         UserSessionEntity::class,
-        RiderEntity::class
+        RiderEntity::class,
+        AdminUserEntity::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun customMenuItemDao(): CustomMenuItemDao
     abstract fun userSessionDao(): UserSessionDao
     abstract fun riderDao(): RiderDao
+    abstract fun adminUserDao(): AdminUserDao
 
     companion object {
         @Volatile
@@ -60,6 +62,24 @@ abstract class AppDatabase : RoomDatabase() {
                                     value = "admin"
                                 )
                             )
+                            database.adminUserDao().insertOrUpdate(
+                                AdminUserEntity(
+                                    id = "admin_owner",
+                                    username = "admin",
+                                    name = "Main Admin / Owner",
+                                    phone = "0325-4946190",
+                                    pin = "1234",
+                                    roleName = "SUPER_ADMIN",
+                                    isActive = true,
+                                    canManageMenu = true,
+                                    canManageOrders = true,
+                                    canViewReports = true,
+                                    canManageRiders = true,
+                                    canManagePartners = true,
+                                    canManagePayments = true,
+                                    canManageDeals = true
+                                )
+                            )
                             database.loyaltyDao().insertOrUpdateProfile(
                                 LoyaltyEntity(
                                     profileId = 1,
@@ -67,7 +87,8 @@ abstract class AppDatabase : RoomDatabase() {
                                     totalCoinsEarnedLifetime = 100,
                                     totalCoinsRedeemedLifetime = 0,
                                     totalOrdersCount = 0,
-                                    totalSpent = 0
+                                    totalSpent = 0,
+                                    referralCode = "SMILE-786"
                                 )
                             )
                             database.feedbackDao().insertFeedback(

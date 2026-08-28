@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.DeliveryDining
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Moped
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
@@ -148,8 +151,9 @@ fun RiderPortalScreen(
                             }
                             Text(
                                 text = "${rider.phone} • ${rider.vehicle}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = PolishPrimaryContainer.copy(alpha = 0.8f)
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = PolishPrimaryContainerSubtle,
+                                    fontSize = 11.5.sp
                                 )
                             )
                         }
@@ -165,7 +169,7 @@ fun RiderPortalScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ExitToApp,
-                            contentDescription = "Logout Rider",
+                            contentDescription = "Logout",
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
                         )
@@ -174,47 +178,37 @@ fun RiderPortalScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Stats row
+                // Performance Summary Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.1f),
+                    RiderMetricCard(
+                        title = "Assigned Today",
+                        value = "${activeOrders.size} active",
+                        color = Color(0xFFFFF3E0),
+                        textColor = Color(0xFFE65100),
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text("Pending Deliveries", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                            Text(
-                                "${activeOrders.size} Orders",
-                                color = Color.White,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.1f),
+                    )
+                    RiderMetricCard(
+                        title = "Completed",
+                        value = "${completedOrders.size} delivered",
+                        color = Color(0xFFE8F5E9),
+                        textColor = Color(0xFF2E7D32),
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text("Completed", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                            Text(
-                                "${completedOrders.size} Deliveries",
-                                color = Color(0xFFA5D6A7),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
+                    )
+                    RiderMetricCard(
+                        title = "Rating",
+                        value = "⭐ ${rider.rating}",
+                        color = PolishPrimaryContainerSubtle,
+                        textColor = PolishPrimaryRed,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
 
-        // Tabs: Active vs Completed
+        // Tabs: Active vs Delivered
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.White,
@@ -232,7 +226,7 @@ fun RiderPortalScreen(
                 onClick = { selectedTab = 0 },
                 text = {
                     Text(
-                        "Active Deliveries (${activeOrders.size})",
+                        "🛵 Active Deliveries (${activeOrders.size})",
                         fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
                         color = if (selectedTab == 0) PolishPrimaryRed else PolishTextMuted
                     )
@@ -243,7 +237,7 @@ fun RiderPortalScreen(
                 onClick = { selectedTab = 1 },
                 text = {
                     Text(
-                        "Completed (${completedOrders.size})",
+                        "✅ Completed History (${completedOrders.size})",
                         fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
                         color = if (selectedTab == 1) PolishPrimaryRed else PolishTextMuted
                     )
@@ -251,9 +245,10 @@ fun RiderPortalScreen(
             )
         }
 
-        val displayOrders = if (selectedTab == 0) activeOrders else completedOrders
+        // Orders List
+        val currentOrdersList = if (selectedTab == 0) activeOrders else completedOrders
 
-        if (displayOrders.isEmpty()) {
+        if (currentOrdersList.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -264,23 +259,21 @@ fun RiderPortalScreen(
                     Icon(
                         imageVector = if (selectedTab == 0) Icons.Default.Moped else Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = PolishTextMuted,
-                        modifier = Modifier.size(54.dp)
+                        tint = PolishTextMuted.copy(alpha = 0.5f),
+                        modifier = Modifier.size(64.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = if (selectedTab == 0) "No Active Deliveries Right Now" else "No Completed Deliveries Yet",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = PolishMaroonDark
+                        text = if (selectedTab == 0) "No active orders assigned currently." else "No completed deliveries yet.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = PolishTextMuted
                         )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (selectedTab == 0) "When customer orders are assigned to you by the owner, they will appear here instantly!" else "Completed orders will be logged here.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = PolishTextMuted,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        text = if (selectedTab == 0) "New customer orders will appear here in real-time." else "Completed trips will be archived here.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted)
                     )
                 }
             }
@@ -290,9 +283,10 @@ fun RiderPortalScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                items(displayOrders, key = { it.orderId }) { order ->
+                items(currentOrdersList, key = { it.orderId }) { order ->
                     RiderOrderCard(
                         order = order,
+                        rider = rider,
                         onMarkOutForDelivery = { onMarkOutForDelivery(order.orderId) },
                         onMarkDelivered = { onMarkDelivered(order.orderId) }
                     )
@@ -303,8 +297,47 @@ fun RiderPortalScreen(
 }
 
 @Composable
+private fun RiderMetricCard(
+    title: String,
+    value: String,
+    color: Color,
+    textColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = color,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    color = textColor.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
+                )
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.sp,
+                    color = textColor,
+                    fontWeight = FontWeight.Black
+                )
+            )
+        }
+    }
+}
+
+@Composable
 private fun RiderOrderCard(
     order: Order,
+    rider: Rider,
     onMarkOutForDelivery: () -> Unit,
     onMarkDelivered: () -> Unit
 ) {
@@ -396,49 +429,51 @@ private fun RiderOrderCard(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(
-                        onClick = {
-                            WhatsAppOrderHelper.sendRawWhatsAppMessage(
-                                context,
-                                order.customerPhone,
-                                "Assalam-o-Alaikum ${order.customerName}! I am your Slice Smile Rider approaching your address with your hot pizza order #${order.orderId}."
+                    if (rider.canCallCustomer) {
+                        IconButton(
+                            onClick = {
+                                WhatsAppOrderHelper.sendRawWhatsAppMessage(
+                                    context,
+                                    order.customerPhone,
+                                    "Assalam-o-Alaikum ${order.customerName}! I am your Slice Smile Rider approaching your address with your hot pizza order #${order.orderId}."
+                                )
+                            },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(WhatsAppGreen)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = "WhatsApp Customer",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
                             )
-                        },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(WhatsAppGreen)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Chat,
-                            contentDescription = "WhatsApp Customer",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                        }
 
-                    IconButton(
-                        onClick = {
-                            WhatsAppOrderHelper.makePhoneCall(context, order.customerPhone)
-                        },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(PolishPrimaryRed)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Call,
-                            contentDescription = "Call Customer",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        IconButton(
+                            onClick = {
+                                WhatsAppOrderHelper.makePhoneCall(context, order.customerPhone)
+                            },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(PolishPrimaryRed)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Call Customer",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Delivery Address Box
+            // Delivery Address Box with Maps Direction Action
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = PolishBgLight,
@@ -447,27 +482,58 @@ private fun RiderOrderCard(
             ) {
                 Row(
                     modifier = Modifier.padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = PolishPrimaryRed,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = order.deliveryAddress,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = PolishTextDark
-                            )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = PolishPrimaryRed,
+                            modifier = Modifier.size(20.dp)
                         )
-                        if (order.areaLandmark.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
                             Text(
-                                text = "Landmark: ${order.areaLandmark}",
-                                style = MaterialTheme.typography.labelSmall.copy(color = PolishTextMuted)
+                                text = order.deliveryAddress,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = PolishTextDark
+                                )
+                            )
+                            if (order.areaLandmark.isNotBlank()) {
+                                Text(
+                                    text = "Landmark: ${order.areaLandmark}",
+                                    style = MaterialTheme.typography.labelSmall.copy(color = PolishTextMuted)
+                                )
+                            }
+                        }
+                    }
+
+                    if (rider.canViewDirections) {
+                        IconButton(
+                            onClick = {
+                                try {
+                                    val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${Uri.encode(order.deliveryAddress + ", Sadiqabad")}"))
+                                    context.startActivity(mapIntent)
+                                } catch (e: Exception) {
+                                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://maps.google.com/?q=${Uri.encode(order.deliveryAddress + ", Sadiqabad")}"))
+                                    context.startActivity(webIntent)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(PolishMaroonDark)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Navigation,
+                                contentDescription = "Open Maps Navigation",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -527,14 +593,14 @@ private fun RiderOrderCard(
                 }
             }
 
-            // Rider Action Buttons
+            // Rider Action Buttons with Granular Permission Checks
             if (!isDelivered) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (order.status != OrderStatus.OUT_FOR_DELIVERY) {
+                    if (order.status != OrderStatus.OUT_FOR_DELIVERY && rider.canPickOrder) {
                         Button(
                             onClick = onMarkOutForDelivery,
                             colors = ButtonDefaults.buttonColors(
@@ -551,19 +617,21 @@ private fun RiderOrderCard(
                         }
                     }
 
-                    Button(
-                        onClick = onMarkDelivered,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2E7D32),
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("rider_mark_delivered_btn_${order.orderId}")
-                    ) {
-                        Text("Mark Delivered 🎉", fontWeight = FontWeight.Bold)
+                    if (rider.canMarkDelivered) {
+                        Button(
+                            onClick = onMarkDelivered,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2E7D32),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("rider_mark_delivered_btn_${order.orderId}")
+                        ) {
+                            Text("Mark Delivered 🎉", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

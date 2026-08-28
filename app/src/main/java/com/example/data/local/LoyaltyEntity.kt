@@ -17,7 +17,12 @@ data class LoyaltyEntity(
     val totalCoinsEarnedLifetime: Int = 0,
     val totalCoinsRedeemedLifetime: Int = 0,
     val totalOrdersCount: Int = 0,
-    val totalSpent: Int = 0
+    val totalSpent: Int = 0,
+    val referralCode: String = "SMILE-786",
+    val successfulReferralsCount: Int = 0,
+    val hasPendingReferralDiscount: Boolean = false,
+    val availableReferralDiscountsCount: Int = 0,
+    val totalReferralDiscountsEarned: Int = 0
 ) {
     fun toDomain(): LoyaltyProfile {
         return LoyaltyProfile(
@@ -25,8 +30,31 @@ data class LoyaltyEntity(
             totalCoinsEarnedLifetime = totalCoinsEarnedLifetime,
             totalCoinsRedeemedLifetime = totalCoinsRedeemedLifetime,
             totalOrdersCount = totalOrdersCount,
-            totalSpent = totalSpent
+            totalSpent = totalSpent,
+            referralCode = referralCode,
+            successfulReferralsCount = successfulReferralsCount,
+            hasPendingReferralDiscount = hasPendingReferralDiscount,
+            availableReferralDiscountsCount = availableReferralDiscountsCount,
+            totalReferralDiscountsEarned = totalReferralDiscountsEarned
         )
+    }
+
+    companion object {
+        fun fromDomain(domain: LoyaltyProfile): LoyaltyEntity {
+            return LoyaltyEntity(
+                profileId = 1,
+                currentCoins = domain.currentCoins,
+                totalCoinsEarnedLifetime = domain.totalCoinsEarnedLifetime,
+                totalCoinsRedeemedLifetime = domain.totalCoinsRedeemedLifetime,
+                totalOrdersCount = domain.totalOrdersCount,
+                totalSpent = domain.totalSpent,
+                referralCode = domain.referralCode,
+                successfulReferralsCount = domain.successfulReferralsCount,
+                hasPendingReferralDiscount = domain.hasPendingReferralDiscount,
+                availableReferralDiscountsCount = domain.availableReferralDiscountsCount,
+                totalReferralDiscountsEarned = domain.totalReferralDiscountsEarned
+            )
+        }
     }
 }
 

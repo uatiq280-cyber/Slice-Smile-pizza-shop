@@ -39,7 +39,19 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -341,20 +353,77 @@ fun LoyaltyQuickBanner(onLoyaltyClick: () -> Unit) {
     }
 }
 
+private data class PromoDealSlide(
+    val badge: String,
+    val badgeColor: Color,
+    val title: String,
+    val description: String,
+    val subText: String,
+    val tagEmoji: String
+)
+
+private val promoDeals = listOf(
+    PromoDealSlide(
+        badge = "🔥 MEGA FEAST (25% OFF)",
+        badgeColor = PolishPrimaryRed,
+        title = "2 Large Pizzas + Drink Deal",
+        description = "2 Large Pizzas + 1.5L Cold Drink + Garlic Bread @ Rs. 2,199",
+        subText = "📍 Chowk Nazir Wala • 📞 0303-7448255",
+        tagEmoji = "🍕"
+    ),
+    PromoDealSlide(
+        badge = "🎁 10% REFERRAL DISCOUNT",
+        badgeColor = Color(0xFF2E7D32),
+        title = "Share QR Code & Save 10%",
+        description = "Invite friends via QR code to earn flat 10% discount on every order!",
+        subText = "🪙 Earn Smile VIP Coins on every delivery",
+        tagEmoji = "🎉"
+    ),
+    PromoDealSlide(
+        badge = "🌙 MIDNIGHT CRAVINGS",
+        badgeColor = Color(0xFF6A1B9A),
+        title = "Free Shawarma With Pizza",
+        description = "Order any Large/Medium Pizza & get 1 Free Shawarma / Fries!",
+        subText = "⚡ Fast Hot Delivery within 30 mins",
+        tagEmoji = "🌯"
+    ),
+    PromoDealSlide(
+        badge = "🛵 FREE DELIVERY (3KM)",
+        badgeColor = PolishMaroonDark,
+        title = "Piping Hot To Your Doorstep",
+        description = "Free Home Delivery on all orders above Rs. 500 in Sadiqabad",
+        subText = "📞 0303-7448255 / 0303-5574979",
+        tagEmoji = "🚀"
+    )
+)
+
 @Composable
 fun PizzeriaHeroBanner(onLoyaltyClick: () -> Unit) {
+    var currentSlideIndex by remember { mutableIntStateOf(0) }
+
+    // Auto-advance slides every 2.5 seconds
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2500L)
+            currentSlideIndex = (currentSlideIndex + 1) % promoDeals.size
+        }
+    }
+
+    val currentDeal = promoDeals[currentSlideIndex]
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .clickable { onLoyaltyClick() },
         shape = RoundedCornerShape(24.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(170.dp)
+                .height(175.dp)
         ) {
             // Background Image
             Image(
@@ -371,8 +440,8 @@ fun PizzeriaHeroBanner(onLoyaltyClick: () -> Unit) {
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.25f),
-                                Color.Black.copy(alpha = 0.85f)
+                                Color.Black.copy(alpha = 0.35f),
+                                Color.Black.copy(alpha = 0.88f)
                             )
                         )
                     )
@@ -382,38 +451,40 @@ fun PizzeriaHeroBanner(onLoyaltyClick: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(14.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Free Home Delivery Tag
+                // Top Row: Dynamic Badge & VIP Button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = PolishPrimaryRed
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    AnimatedContent(
+                        targetState = currentDeal,
+                        transitionSpec = {
+                            (slideInHorizontally { width -> width / 2 } + fadeIn()) togetherWith
+                                (slideOutHorizontally { width -> -width / 2 } + fadeOut())
+                        },
+                        label = "badge_anim"
+                    ) { deal ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = deal.badgeColor
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.DeliveryDining,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = "FREE DELIVERY (Min Rs 500 in 3KM)",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.5.sp,
-                                    color = Color.White
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = deal.badge,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color.White
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
 
@@ -428,7 +499,7 @@ fun PizzeriaHeroBanner(onLoyaltyClick: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "🪙 VIP Club",
+                                text = "🪙 10% OFF VIP",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
@@ -439,31 +510,70 @@ fun PizzeriaHeroBanner(onLoyaltyClick: () -> Unit) {
                     }
                 }
 
-                // Title & Subtitle
+                // Middle & Bottom: Animated Deal Title, Description & Slide Dots
                 Column {
-                    Text(
-                        text = "SLICE SMILE PIZZA",
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontWeight = FontWeight.Black,
-                            color = Color.White,
-                            letterSpacing = 0.5.sp
-                        )
-                    )
-                    Text(
-                        text = "Hot & Fresh Pizzas, Zinger Burgers, Shawarma & Deals",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = PolishPrimaryContainer,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 12.sp
-                        )
-                    )
-                    Text(
-                        text = "📍 Chowk Nazir Wala • 📞 0303-7448255 / 0303-5574979",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 10.5.sp
-                        )
-                    )
+                    AnimatedContent(
+                        targetState = currentDeal,
+                        transitionSpec = {
+                            (slideInHorizontally { width -> width } + fadeIn()) togetherWith
+                                (slideOutHorizontally { width -> -width } + fadeOut())
+                        },
+                        label = "deal_text_anim"
+                    ) { deal ->
+                        Column {
+                            Text(
+                                text = "${deal.tagEmoji} ${deal.title}",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    letterSpacing = 0.3.sp,
+                                    fontSize = 17.sp
+                                ),
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = deal.description,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = PolishPrimaryContainer,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.5.sp
+                                ),
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = deal.subText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 10.sp
+                                ),
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Pagination indicator dots
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        promoDeals.indices.forEach { index ->
+                            val isSelected = index == currentSlideIndex
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 3.dp)
+                                    .height(4.dp)
+                                    .width(if (isSelected) 18.dp else 6.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(if (isSelected) PolishPrimaryContainer else Color.White.copy(alpha = 0.4f))
+                                    .clickable { currentSlideIndex = index }
+                            )
+                        }
+                    }
                 }
             }
         }

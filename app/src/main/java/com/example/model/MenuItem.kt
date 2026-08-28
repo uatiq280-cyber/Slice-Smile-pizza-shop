@@ -52,6 +52,8 @@ data class MenuItem(
     val isSpicy: Boolean = false,
     val isPopular: Boolean = false,
     val tag: String? = null,
+    val discountPercent: Int = 0,
+    val originalPrice: Int? = null,
     val imageDrawableRes: String? = null,
     val imageUrl: String? = null,
     val isAvailable: Boolean = true
@@ -61,4 +63,22 @@ data class MenuItem(
 
     val defaultPrice: Int
         get() = if (sizeOptions.isNotEmpty()) sizeOptions.first().price else basePrice
+
+    val hasDiscount: Boolean
+        get() = discountPercent > 0 || (originalPrice != null && originalPrice > defaultPrice)
+
+    val effectiveOriginalPrice: Int
+        get() = originalPrice?.takeIf { it > defaultPrice }
+            ?: if (discountPercent in 1..95) {
+                ((defaultPrice.toDouble() / (100 - discountPercent)) * 100).toInt()
+            } else defaultPrice
+
+    val effectiveDiscountPercent: Int
+        get() = if (discountPercent > 0) {
+            discountPercent
+        } else if (originalPrice != null && originalPrice > defaultPrice && originalPrice > 0) {
+            (((originalPrice - defaultPrice).toDouble() / originalPrice) * 100).toInt()
+        } else {
+            0
+        }
 }

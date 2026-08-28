@@ -128,14 +128,26 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Shield
+import com.example.model.AdminRole
+import com.example.model.AdminUser
 import com.example.model.CustomerUsageStats
 import com.example.model.PaymentSettings
+import com.example.service.InvoicePdfGenerator
 
 @Composable
 fun AdminPanelScreen(
     menuItems: List<MenuItem>,
     orders: List<Order>,
     riders: List<Rider>,
+    adminUsers: List<AdminUser> = emptyList(),
     paymentSettings: PaymentSettings = PaymentSettings(),
     customerUsageStats: List<CustomerUsageStats> = emptyList(),
     cloudSyncStatus: CloudSyncStatus = CloudSyncStatus(),
@@ -157,6 +169,9 @@ fun AdminPanelScreen(
     onEditRiderClick: (Rider) -> Unit,
     onDeleteRiderClick: (String) -> Unit,
     onToggleRiderEnabled: (Rider, Boolean) -> Unit,
+    onAddPartnerClick: () -> Unit = {},
+    onEditPartnerClick: (AdminUser) -> Unit = {},
+    onDeletePartnerClick: (AdminUser) -> Unit = {},
     onTestNotificationSound: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Orders, 1: Menu & Prices, 2: Riders Fleet
@@ -573,6 +588,17 @@ fun AdminPanelScreen(
                         )
                     }
                 )
+                Tab(
+                    selected = selectedTab == 5,
+                    onClick = { selectedTab = 5 },
+                    text = {
+                        Text(
+                            "🤝 Partners (${adminUsers.size})",
+                            fontWeight = if (selectedTab == 5) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 5) PolishPrimaryRed else PolishTextMuted
+                        )
+                    }
+                )
             }
 
             // 3. Tab Contents
@@ -628,6 +654,15 @@ fun AdminPanelScreen(
                     AdminPaymentSettingsTab(
                         paymentSettings = paymentSettings,
                         onUpdatePaymentSettings = onUpdatePaymentSettings
+                    )
+                }
+                5 -> {
+                    // Multi-Admin & Partner Management Tab
+                    AdminPartnersList(
+                        adminUsers = adminUsers,
+                        onAddPartner = onAddPartnerClick,
+                        onEditPartner = onEditPartnerClick,
+                        onDeletePartner = onDeletePartnerClick
                     )
                 }
             }
@@ -1408,6 +1443,28 @@ private fun AdminOrderCard(
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // PDF Invoice Button
+            OutlinedButton(
+                onClick = {
+                    InvoicePdfGenerator.generateSingleOrderInvoice(context, order)?.let { file ->
+                        InvoicePdfGenerator.sharePdf(context, file, "Invoice #${order.orderId}")
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .testTag("print_invoice_btn_${order.orderId}"),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishMaroonDark.copy(alpha = 0.4f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = PolishMaroonDark)
+            ) {
+                Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp), tint = PolishPrimaryRed)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Print / Share PDF Invoice 📄 (رسید)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -2242,6 +2299,127 @@ fun AdminAnalyticsDashboard(
                             text = "${menuItems.count { it.isAvailable }}/${menuItems.size}",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, color = PolishTextDark)
                         )
+                    }
+                }
+            }
+        }
+
+        // PDF Sales Report Download Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = PolishPrimaryRed, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Export PDF Invoices & Reports 📄",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = PolishPrimaryContainerSubtle
+                        ) {
+                            Text(
+                                text = "PDF Reports",
+                                style = MaterialTheme.typography.labelSmall.copy(color = PolishPrimaryRed, fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "ماہانہ، سالانہ یا آج کی کل سیل انوائس رپورٹ پی ڈی ایف میں ڈاؤن لوڈ اور شیئر کریں",
+                        style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted, fontSize = 11.5.sp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val file = InvoicePdfGenerator.generateInvoiceReport(
+                                    context = context,
+                                    reportTitle = "Today's Sales Report (${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())})",
+                                    orders = todayOrders,
+                                    filterLabel = "Today: $todayCount Orders | Total Rs. $todayIncome"
+                                )
+                                file?.let { InvoicePdfGenerator.sharePdf(context, it, "Today Sales Report") }
+                            },
+                            modifier = Modifier.weight(1f).height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E7D32)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF2E7D32))
+                        ) {
+                            Text("📅 Today", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val file = InvoicePdfGenerator.generateInvoiceReport(
+                                    context = context,
+                                    reportTitle = "Monthly Sales Report (${SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date())})",
+                                    orders = monthOrders,
+                                    filterLabel = "This Month: $monthCount Orders | Total Rs. $monthIncome"
+                                )
+                                file?.let { InvoicePdfGenerator.sharePdf(context, it, "Monthly Sales Report") }
+                            },
+                            modifier = Modifier.weight(1f).height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE65100)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100))
+                        ) {
+                            Text("📆 Month", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val file = InvoicePdfGenerator.generateInvoiceReport(
+                                    context = context,
+                                    reportTitle = "Yearly Sales Report (${Calendar.getInstance().get(Calendar.YEAR)})",
+                                    orders = yearOrders,
+                                    filterLabel = "This Year: $yearCount Orders | Total Rs. $yearIncome"
+                                )
+                                file?.let { InvoicePdfGenerator.sharePdf(context, it, "Yearly Sales Report") }
+                            },
+                            modifier = Modifier.weight(1f).height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6A1B9A)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF6A1B9A))
+                        ) {
+                            Text("🗓️ Year", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                val file = InvoicePdfGenerator.generateInvoiceReport(
+                                    context = context,
+                                    reportTitle = "Complete Lifetime Sales Report",
+                                    orders = validIncomeOrders,
+                                    filterLabel = "Lifetime: $totalLifetimeCount Orders | Total Rs. $totalLifetimeIncome"
+                                )
+                                file?.let { InvoicePdfGenerator.sharePdf(context, it, "Complete Sales Report") }
+                            },
+                            modifier = Modifier.weight(1.2f).height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed)
+                        ) {
+                            Text("💰 All Time", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -3282,5 +3460,254 @@ fun AdminPaymentSettingsTab(
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+// ---------------- TAB 5: PARTNERS & MULTI-ADMIN RBAC ----------------
+@Composable
+private fun AdminPartnersList(
+    adminUsers: List<AdminUser>,
+    onAddPartner: () -> Unit,
+    onEditPartner: (AdminUser) -> Unit,
+    onDeletePartner: (AdminUser) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(PolishBgLight),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Header Banner
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = PolishPrimaryRed, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Partners & Staff Access (RBAC) 🤝",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
+                                )
+                                Text(
+                                    text = "پارٹنرز، مینیجرز اور کچن سٹاف کے الگ لاگ اِن اور پرمیشنز",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted, fontSize = 11.5.sp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = onAddPartner,
+                        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("add_partner_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PolishPrimaryRed)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Register New Partner / Admin 🤝", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        if (adminUsers.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "🤝", fontSize = 40.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No Partner Accounts Created Yet",
+                            fontWeight = FontWeight.Bold,
+                            color = PolishTextDark,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Tap 'Register New Partner' above to add your business partners with unique logins and custom permissions.",
+                            color = PolishTextMuted,
+                            fontSize = 12.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(adminUsers, key = { it.id }) { user ->
+                AdminUserCard(
+                    user = user,
+                    onEdit = { onEditPartner(user) },
+                    onDelete = { onDeletePartner(user) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminUserCard(
+    user: AdminUser,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val isOwner = user.role == AdminRole.SUPER_ADMIN
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("partner_card_${user.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isOwner) PolishPrimaryRed.copy(alpha = 0.5f) else PolishBorder
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = when (user.role) {
+                            AdminRole.SUPER_ADMIN -> PolishPrimaryContainerSubtle
+                            AdminRole.PARTNER -> Color(0xFFE8F5E9)
+                            AdminRole.MANAGER -> Color(0xFFFFF3E0)
+                            else -> PolishBgLight
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = when (user.role) {
+                                    AdminRole.SUPER_ADMIN -> "👑"
+                                    AdminRole.PARTNER -> "🤝"
+                                    AdminRole.MANAGER -> "👔"
+                                    else -> "🧑‍🍳"
+                                },
+                                fontSize = 18.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = user.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = PolishTextDark)
+                        )
+                        Text(
+                            text = "Login ID: @${user.username} | 📞 ${user.phone}",
+                            style = MaterialTheme.typography.bodySmall.copy(color = PolishTextMuted, fontSize = 11.5.sp)
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (user.isActive) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                ) {
+                    Text(
+                        text = if (user.isActive) "Active ✅" else "Disabled ❌",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = if (user.isActive) Color(0xFF2E7D32) else Color(0xFFC62828),
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = PolishBorder, thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Permissions summary badges
+            Text(
+                text = "Allowed Permissions (رسائی):",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = PolishTextDark, fontSize = 11.sp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (user.canManageOrders) PermissionChip("🔔 Orders")
+                if (user.canManageMenu) PermissionChip("🍕 Menu")
+                if (user.canViewReports) PermissionChip("📊 Reports")
+                if (user.canManageRiders) PermissionChip("🛵 Riders")
+                if (user.canManagePartners) PermissionChip("🤝 Partners")
+                if (user.canManagePayments) PermissionChip("💳 Payments")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onEdit,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PolishMaroonDark.copy(alpha = 0.4f)),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = PolishMaroonDark, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Edit Partner ✏️", fontSize = 11.5.sp, color = PolishMaroonDark, fontWeight = FontWeight.Bold)
+                }
+
+                if (!isOwner) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = onDelete,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PolishPrimaryRed.copy(alpha = 0.4f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = PolishPrimaryRed),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = PolishPrimaryRed, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Delete", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionChip(label: String) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = PolishBgLight,
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, PolishBorder)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(color = PolishMaroonDark, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }

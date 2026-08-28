@@ -21,7 +21,12 @@ data class RiderEntity(
     val isAvailable: Boolean = true,
     val isEnabled: Boolean = true,
     val rating: Double = 5.0,
-    val totalDeliveries: Int = 0
+    val totalDeliveries: Int = 0,
+    val canAcceptOrder: Boolean = true,
+    val canPickOrder: Boolean = true,
+    val canMarkDelivered: Boolean = true,
+    val canCallCustomer: Boolean = true,
+    val canViewDirections: Boolean = true
 ) {
     fun toDomain(activeCount: Int = 0): Rider {
         return Rider(
@@ -34,7 +39,12 @@ data class RiderEntity(
             isEnabled = isEnabled,
             rating = rating,
             totalDeliveries = totalDeliveries,
-            activeOrdersCount = activeCount
+            activeOrdersCount = activeCount,
+            canAcceptOrder = canAcceptOrder,
+            canPickOrder = canPickOrder,
+            canMarkDelivered = canMarkDelivered,
+            canCallCustomer = canCallCustomer,
+            canViewDirections = canViewDirections
         )
     }
 
@@ -49,7 +59,12 @@ data class RiderEntity(
                 isAvailable = rider.isAvailable,
                 isEnabled = rider.isEnabled,
                 rating = rider.rating,
-                totalDeliveries = rider.totalDeliveries
+                totalDeliveries = rider.totalDeliveries,
+                canAcceptOrder = rider.canAcceptOrder,
+                canPickOrder = rider.canPickOrder,
+                canMarkDelivered = rider.canMarkDelivered,
+                canCallCustomer = rider.canCallCustomer,
+                canViewDirections = rider.canViewDirections
             )
         }
     }

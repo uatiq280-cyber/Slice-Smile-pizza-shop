@@ -41,6 +41,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.model.OrderStatus
+import com.example.model.AdminUser
 import com.example.service.NotificationHelper
 import com.example.ui.components.AdminChangePinDialog
 import com.example.ui.components.AdminEditItemDialog
@@ -51,6 +52,7 @@ import com.example.ui.components.EasypaisaPaymentDialog
 import com.example.ui.components.FeedbackDialog
 import com.example.ui.components.ItemCustomizationDialog
 import com.example.ui.components.LocationSelectorSheet
+import com.example.ui.components.PartnerManagementDialog
 import com.example.ui.components.PizzaTopBar
 import com.example.ui.components.RiderLoginDialog
 import com.example.ui.components.RiderManagementDialog
@@ -142,6 +144,9 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val deliveryFee by viewModel.deliveryFee.collectAsState()
     val grandTotal by viewModel.grandTotal.collectAsState()
     val applyCoinsDiscount by viewModel.applyCoinsDiscount.collectAsState()
+    val appliedReferralCode by viewModel.appliedReferralCode.collectAsState()
+    val applyReferralDiscount by viewModel.applyReferralDiscount.collectAsState()
+    val referralDiscountAmount by viewModel.referralDiscountAmount.collectAsState()
 
     val userSession by viewModel.userSession.collectAsState()
     val isShowingAuthDialog by viewModel.isShowingAuthDialog.collectAsState()
@@ -175,6 +180,11 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val editingItem by viewModel.editingItem.collectAsState()
     val allMenuItems by viewModel.allMenuItems.collectAsState()
 
+    // Multi-Partner / Admin States
+    val allAdminUsers by viewModel.allAdminUsers.collectAsState()
+    val isShowingPartnerDialog by viewModel.isShowingPartnerDialog.collectAsState()
+    val editingAdminUser by viewModel.editingAdminUser.collectAsState()
+
     // Rider Fleet & Portal States
     val allRiders by viewModel.allRiders.collectAsState()
     val currentRider by viewModel.currentRider.collectAsState()
@@ -192,9 +202,10 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
     val isLocationSelectorVisible by viewModel.isLocationSelectorVisible.collectAsState()
     val selectedOrderForFeedback by viewModel.selectedOrderForFeedback.collectAsState()
 
-    // Handle Deep-Link / Notification Click
+    // Handle Deep-Link / Notification Click & Referral Links
     LaunchedEffect(Unit) {
-        val openScreen = (context as? ComponentActivity)?.intent?.getStringExtra("OPEN_SCREEN")
+        val intent = (context as? ComponentActivity)?.intent
+        val openScreen = intent?.getStringExtra("OPEN_SCREEN")
         if (openScreen == "admin") {
             viewModel.refreshOrdersFromCloud()
             if (isAdminLoggedIn) {
@@ -202,6 +213,13 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
             } else {
                 viewModel.showAdminLoginDialog(true)
             }
+        }
+
+        // Referral link / QR Code scan handler (e.g. https://slicesmile.pizza/ref?code=SMILE-1234)
+        val dataUri = intent?.data
+        val refCode = dataUri?.getQueryParameter("code") ?: dataUri?.getQueryParameter("ref")
+        if (!refCode.isNullOrBlank()) {
+            viewModel.applyReferralCode(refCode)
         }
     }
 
@@ -361,6 +379,9 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                         cartItems = cartItems,
                         loyaltyProfile = loyaltyProfile,
                         applyCoinsDiscount = applyCoinsDiscount,
+                        appliedReferralCode = appliedReferralCode,
+                        applyReferralDiscount = applyReferralDiscount,
+                        referralDiscountAmount = referralDiscountAmount,
                         cartSubtotal = cartSubtotal,
                         potentialCoinsEarned = potentialCoinsEarned,
                         redeemableCoinsDiscount = redeemableCoinsDiscount,
@@ -378,6 +399,9 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                         onQuantityDelta = viewModel::updateCartItemQuantity,
                         onRemoveItem = viewModel::removeCartItem,
                         onToggleCoinsDiscount = viewModel::toggleCoinsDiscount,
+                        onApplyReferralCode = viewModel::applyReferralCode,
+                        onRemoveReferralCode = viewModel::removeReferralCode,
+                        onToggleReferralDiscount = viewModel::toggleReferralDiscount,
                         onCustomerNameChanged = viewModel::setCustomerName,
                         onCustomerPhoneChanged = viewModel::setCustomerPhone,
                         onOrderNoteChanged = viewModel::setOrderNote,
@@ -454,7 +478,11 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                         },
                         onNavigateToLoyalty = {
                             navController.navigate(Screen.Loyalty.route)
-                        }
+                        },
+                        onShareQrCode = { viewModel.shareReferralQr(context) },
+                        onShareInviteText = { viewModel.shareReferralInvite(context) },
+                        onCopyReferralCode = { viewModel.copyReferralCode(context) },
+                        onApplyReferralCode = viewModel::applyReferralCode
                     )
                 }
 
@@ -501,6 +529,15 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             },
                             onToggleRiderEnabled = { rider, enabled ->
                                 viewModel.toggleRiderEnabled(rider, enabled)
+                            },
+                            onAddPartnerClick = {
+                                viewModel.openAddPartner()
+                            },
+                            onEditPartnerClick = { partner ->
+                                viewModel.openEditPartner(partner)
+                            },
+                            onDeletePartnerClick = { partner ->
+                                viewModel.deletePartner(partner.id)
                             },
                             onTestNotificationSound = {
                                 viewModel.testOwnerNotificationSound()
@@ -608,6 +645,16 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                 )
             }
 
+            if (isShowingPartnerDialog) {
+                PartnerManagementDialog(
+                    adminUser = editingAdminUser,
+                    onDismiss = { viewModel.closePartnerDialog() },
+                    onSave = { partner ->
+                        viewModel.savePartner(partner)
+                    }
+                )
+            }
+
             // Rider Dialogs
             if (isShowingRiderLogin) {
                 RiderLoginDialog(
@@ -698,13 +745,14 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                 FeedbackDialog(
                     order = order,
                     onDismiss = { viewModel.setFeedbackOrder(null) },
-                    onSubmit = { overall, taste, delivery, comment ->
+                    onSubmit = { overall, taste, delivery, comment, photoUri ->
                         viewModel.submitFeedback(
                             orderId = order.orderId,
                             overallRating = overall,
                             foodTaste = taste,
                             deliverySpeed = delivery,
-                            comment = comment
+                            comment = comment,
+                            photoUri = photoUri
                         )
                     }
                 )

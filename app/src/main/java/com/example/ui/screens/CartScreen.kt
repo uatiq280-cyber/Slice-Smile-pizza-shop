@@ -53,6 +53,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,6 +90,9 @@ fun CartScreen(
     cartItems: List<CartItem>,
     loyaltyProfile: LoyaltyProfile,
     applyCoinsDiscount: Boolean,
+    appliedReferralCode: String = "",
+    applyReferralDiscount: Boolean = false,
+    referralDiscountAmount: Int = 0,
     cartSubtotal: Int,
     potentialCoinsEarned: Int,
     redeemableCoinsDiscount: Int,
@@ -103,6 +110,9 @@ fun CartScreen(
     onQuantityDelta: (String, Int) -> Unit,
     onRemoveItem: (String) -> Unit,
     onToggleCoinsDiscount: () -> Unit,
+    onApplyReferralCode: (String) -> Unit = {},
+    onRemoveReferralCode: () -> Unit = {},
+    onToggleReferralDiscount: () -> Unit = {},
     onCustomerNameChanged: (String) -> Unit,
     onCustomerPhoneChanged: (String) -> Unit,
     onOrderNoteChanged: (String) -> Unit,
@@ -226,6 +236,21 @@ fun CartScreen(
                 coinsToRedeemCount = coinsToRedeemCount,
                 cartSubtotal = cartSubtotal,
                 onToggleDiscount = onToggleCoinsDiscount
+            )
+        }
+
+        // 2b. Referral & Promo Code 10% Discount Box
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            ReferralPromoCheckoutCard(
+                loyaltyProfile = loyaltyProfile,
+                appliedReferralCode = appliedReferralCode,
+                applyReferralDiscount = applyReferralDiscount,
+                referralDiscountAmount = referralDiscountAmount,
+                cartSubtotal = cartSubtotal,
+                onApplyReferralCode = onApplyReferralCode,
+                onRemoveReferralCode = onRemoveReferralCode,
+                onToggleReferralDiscount = onToggleReferralDiscount
             )
         }
 
@@ -691,6 +716,14 @@ fun CartScreen(
                         )
                     }
 
+                    if (referralDiscountAmount > 0) {
+                        BillRow(
+                            label = "10% Referral Discount 🎟️",
+                            value = "-Rs $referralDiscountAmount",
+                            valueColor = Color(0xFF2E7D32)
+                        )
+                    }
+
                     BillRow(
                         label = "Delivery Fee (Within 3 KM)",
                         value = if (deliveryFee == 0) "FREE" else "Rs $deliveryFee",
@@ -1076,6 +1109,210 @@ fun BillRow(label: String, value: String, valueColor: Color = Color.Unspecified)
                 color = if (valueColor != Color.Unspecified) valueColor else PolishTextDark
             )
         )
+    }
+}
+
+@Composable
+fun ReferralPromoCheckoutCard(
+    loyaltyProfile: LoyaltyProfile,
+    appliedReferralCode: String,
+    applyReferralDiscount: Boolean,
+    referralDiscountAmount: Int,
+    cartSubtotal: Int,
+    onApplyReferralCode: (String) -> Unit,
+    onRemoveReferralCode: () -> Unit,
+    onToggleReferralDiscount: () -> Unit
+) {
+    var promoInput by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    val hasEarnedDiscounts = loyaltyProfile.availableReferralDiscountsCount > 0 || loyaltyProfile.hasPendingReferralDiscount
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("referral_checkout_card"),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PolishBorder),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE8F5E9)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🎁", fontSize = 16.sp)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "10% Referral Discount",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = PolishMaroonDark
+                        )
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFE8F5E9)
+                ) {
+                    Text(
+                        text = "Save 10%",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF2E7D32)
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Case 1: Referral Code or Earned Discount is actively applied
+            if (referralDiscountAmount > 0 || appliedReferralCode.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFE8F5E9))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (appliedReferralCode.isNotBlank()) "Code '$appliedReferralCode' Applied!" else "10% Referral Reward Applied!",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D32),
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "You save Rs. $referralDiscountAmount (10% OFF on this order)",
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF1B5E20),
+                            fontSize = 11.sp
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onRemoveReferralCode,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC8E6C9)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.testTag("remove_referral_btn")
+                    ) {
+                        Text("Remove", fontSize = 11.sp, color = PolishPrimaryRed, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else if (hasEarnedDiscounts && cartSubtotal > 0) {
+                // Case 2: User has available earned referral vouchers ready to toggle
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFFFF8E1))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Apply 10% Referral Reward",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = PolishMaroonDark
+                            )
+                        )
+                        Text(
+                            text = "${loyaltyProfile.availableReferralDiscountsCount} vouchers ready • Saves Rs. ${(cartSubtotal * 0.10).toInt()}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = PolishPrimaryRed,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                    Switch(
+                        checked = applyReferralDiscount,
+                        onCheckedChange = { onToggleReferralDiscount() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF2E7D32)
+                        ),
+                        modifier = Modifier.testTag("toggle_referral_reward_switch")
+                    )
+                }
+            } else {
+                // Case 3: Enter friend's referral promo code
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Got an invite from a friend? Enter their referral code to unlock 10% OFF!",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.sp,
+                        color = PolishTextMuted
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = promoInput,
+                        onValueChange = { promoInput = it.uppercase() },
+                        placeholder = { Text("Friend's Code (e.g. SMILE-786)", fontSize = 12.sp, color = PolishTextMuted) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("checkout_referral_input"),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            focusedBorderColor = PolishPrimaryRed,
+                            unfocusedBorderColor = PolishInputBorder
+                        )
+                    )
+
+                    Button(
+                        onClick = {
+                            if (promoInput.isNotBlank()) {
+                                onApplyReferralCode(promoInput.trim())
+                                promoInput = ""
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PolishMaroonDark,
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        modifier = Modifier.testTag("checkout_apply_referral_btn")
+                    ) {
+                        Text(
+                            text = "Apply",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

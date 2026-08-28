@@ -19,6 +19,8 @@ data class FeedbackEntity(
     val foodTasteRating: Int,
     val deliverySpeedRating: Int,
     val comment: String,
+    val photoUri: String? = null,
+    val photoUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 ) {
     fun toDomain(): CustomerFeedback {
@@ -30,6 +32,8 @@ data class FeedbackEntity(
             foodTasteRating = foodTasteRating,
             deliverySpeedRating = deliverySpeedRating,
             comment = comment,
+            photoUri = photoUri,
+            photoUrl = photoUrl,
             timestamp = timestamp
         )
     }
@@ -44,6 +48,8 @@ data class FeedbackEntity(
                 foodTasteRating = feedback.foodTasteRating,
                 deliverySpeedRating = feedback.deliverySpeedRating,
                 comment = feedback.comment,
+                photoUri = feedback.photoUri,
+                photoUrl = feedback.photoUrl,
                 timestamp = feedback.timestamp
             )
         }

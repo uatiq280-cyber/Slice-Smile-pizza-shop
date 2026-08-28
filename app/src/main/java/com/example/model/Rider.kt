@@ -10,5 +10,11 @@ data class Rider(
     val isEnabled: Boolean = true,
     val rating: Double = 5.0,
     val totalDeliveries: Int = 0,
-    val activeOrdersCount: Int = 0
+    val activeOrdersCount: Int = 0,
+    val canAcceptOrder: Boolean = true,
+    val canPickOrder: Boolean = true,
+    val canMarkDelivered: Boolean = true,
+    val canCallCustomer: Boolean = true,
+    val canViewDirections: Boolean = true
 )
+

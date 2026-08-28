@@ -1,5 +1,9 @@
 package com.example.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +22,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
@@ -29,6 +36,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -44,12 +52,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.compose.rememberAsyncImagePainter
 import com.example.model.Order
 import com.example.ui.theme.CheeseGold
 import com.example.ui.theme.PolishBgLight
@@ -65,12 +75,19 @@ import com.example.ui.theme.PolishTextMuted
 fun FeedbackDialog(
     order: Order,
     onDismiss: () -> Unit,
-    onSubmit: (overallRating: Int, foodTaste: Int, deliverySpeed: Int, comment: String) -> Unit
+    onSubmit: (overallRating: Int, foodTaste: Int, deliverySpeed: Int, comment: String, photoUri: String?) -> Unit
 ) {
     var overallRating by remember { mutableIntStateOf(5) }
     var foodTasteRating by remember { mutableIntStateOf(5) }
     var deliverySpeedRating by remember { mutableIntStateOf(5) }
     var commentText by remember { mutableStateOf("") }
+    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedPhotoUri = uri
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -112,7 +129,7 @@ fun FeedbackDialog(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Order Feedback",
+                                text = "Order Feedback ⭐",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Black,
                                     color = PolishMaroonDark
@@ -227,6 +244,74 @@ fun FeedbackDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Photo Upload Section
+                Text(
+                    text = "📸 Add Pizza / Food Picture (Optional):",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = PolishTextDark
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (selectedPhotoUri != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(1.5.dp, PolishPrimaryRed, RoundedCornerShape(16.dp))
+                    ) {
+                        Image(
+                            painter = rememberAsyncImagePainter(model = selectedPhotoUri),
+                            contentDescription = "Selected Pizza Photo",
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        IconButton(
+                            onClick = { selectedPhotoUri = null },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.6f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Remove Photo",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { photoPickerLauncher.launch("image/*") },
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("feedback_add_photo_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddPhotoAlternate,
+                            contentDescription = null,
+                            tint = PolishPrimaryRed,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Attach Food Photo from Gallery 📷",
+                            fontWeight = FontWeight.Bold,
+                            color = PolishPrimaryRed,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
                 // Comment input
                 OutlinedTextField(
                     value = commentText,
@@ -252,7 +337,13 @@ fun FeedbackDialog(
                 // Submit button
                 Button(
                     onClick = {
-                        onSubmit(overallRating, foodTasteRating, deliverySpeedRating, commentText)
+                        onSubmit(
+                            overallRating,
+                            foodTasteRating,
+                            deliverySpeedRating,
+                            commentText,
+                            selectedPhotoUri?.toString()
+                        )
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PolishMaroonDark,
@@ -266,7 +357,7 @@ fun FeedbackDialog(
                         .testTag("submit_feedback_btn")
                 ) {
                     Text(
-                        text = "Submit Review",
+                        text = "Submit Review ⭐",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
                         color = PolishPrimaryContainer
@@ -300,4 +391,3 @@ fun RatingBar(
         }
     }
 }
-

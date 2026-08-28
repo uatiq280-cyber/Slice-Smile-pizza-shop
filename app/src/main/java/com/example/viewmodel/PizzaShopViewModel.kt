@@ -1,12 +1,15 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.MenuDataSource
 import com.example.data.local.AppDatabase
 import com.example.data.repository.CloudSyncStatus
 import com.example.data.repository.PizzaRepository
+import com.example.model.AdminRole
+import com.example.model.AdminUser
 import com.example.model.AuthType
 import com.example.model.CartItem
 import com.example.model.CustomerFeedback
@@ -22,6 +25,7 @@ import com.example.model.PortionSize
 import com.example.model.Rider
 import com.example.model.UserRole
 import com.example.model.UserSession
+import com.example.service.InvoicePdfGenerator
 import com.example.service.NotificationHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -241,6 +245,19 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isShowingChangePinDialog = MutableStateFlow(false)
     val isShowingChangePinDialog: StateFlow<Boolean> = _isShowingChangePinDialog.asStateFlow()
 
+    // Multi-Admin & Partner Management
+    val allAdminUsers: StateFlow<List<AdminUser>> = repository.allAdminUsersFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _currentAdminUser = MutableStateFlow<AdminUser?>(null)
+    val currentAdminUser: StateFlow<AdminUser?> = _currentAdminUser.asStateFlow()
+
+    private val _isShowingPartnerDialog = MutableStateFlow(false)
+    val isShowingPartnerDialog: StateFlow<Boolean> = _isShowingPartnerDialog.asStateFlow()
+
+    private val _editingAdminUser = MutableStateFlow<AdminUser?>(null)
+    val editingAdminUser: StateFlow<AdminUser?> = _editingAdminUser.asStateFlow()
+
     private val _isShowingEditItemDialog = MutableStateFlow(false)
     val isShowingEditItemDialog: StateFlow<Boolean> = _isShowingEditItemDialog.asStateFlow()
 
@@ -313,6 +330,13 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     private val _applyCoinsDiscount = MutableStateFlow(false)
     val applyCoinsDiscount: StateFlow<Boolean> = _applyCoinsDiscount.asStateFlow()
 
+    // Referral 10% discount in cart
+    private val _appliedReferralCode = MutableStateFlow("")
+    val appliedReferralCode: StateFlow<String> = _appliedReferralCode.asStateFlow()
+
+    private val _applyReferralDiscount = MutableStateFlow(false)
+    val applyReferralDiscount: StateFlow<Boolean> = _applyReferralDiscount.asStateFlow()
+
     // Customer Checkout Info
     private val _customerName = MutableStateFlow("")
     val customerName: StateFlow<String> = _customerName.asStateFlow()
@@ -375,6 +399,28 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    val referralDiscountAmount: StateFlow<Int> = combine(
+        cartSubtotal,
+        _applyReferralDiscount,
+        _appliedReferralCode,
+        loyaltyProfile
+    ) { subtotal, applyToggle, refCode, profile ->
+        if (subtotal > 0 && (applyToggle || refCode.isNotBlank() || profile.hasPendingReferralDiscount || profile.availableReferralDiscountsCount > 0)) {
+            // 10% Flat Referral Discount!
+            (subtotal * 0.10).toInt()
+        } else {
+            0
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val totalDiscountAmount: StateFlow<Int> = combine(
+        redeemableCoinsDiscount,
+        referralDiscountAmount,
+        cartSubtotal
+    ) { coinsDisc, refDisc, subtotal ->
+        minOf(coinsDisc + refDisc, subtotal)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     val coinsToRedeemCount: StateFlow<Int> = redeemableCoinsDiscount.map { discountRs ->
         (discountRs / 10) * 100
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
@@ -387,7 +433,7 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
 
     val grandTotal: StateFlow<Int> = combine(
         cartSubtotal,
-        redeemableCoinsDiscount,
+        totalDiscountAmount,
         deliveryFee
     ) { subtotal, discount, fee ->
         if (subtotal == 0) 0 else (subtotal - discount + fee).coerceAtLeast(0)
@@ -486,10 +532,64 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     fun clearCart() {
         _cartItems.value = emptyList()
         _applyCoinsDiscount.value = false
+        _applyReferralDiscount.value = false
+        _appliedReferralCode.value = false.let { "" }
     }
 
     fun toggleCoinsDiscount() {
         _applyCoinsDiscount.value = !_applyCoinsDiscount.value
+    }
+
+    fun toggleReferralDiscount(apply: Boolean? = null) {
+        _applyReferralDiscount.value = apply ?: !_applyReferralDiscount.value
+    }
+
+    fun applyReferralCode(code: String) {
+        val clean = code.trim().uppercase()
+        if (clean.isBlank()) return
+        val myCode = loyaltyProfile.value.referralCode
+        if (clean.equals(myCode, ignoreCase = true)) {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Cannot use your own referral code! Share it with friends instead 😊"))
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            val success = repository.applyReferralCode(clean)
+            if (success) {
+                _appliedReferralCode.value = clean
+                _applyReferralDiscount.value = true
+                _eventFlow.emit(UiEvent.ShowToast("🎉 10% Referral Discount Applied! Plus 100 Welcome Coins added!"))
+            } else {
+                _eventFlow.emit(UiEvent.ShowToast("Invalid referral code. Please check and try again."))
+            }
+        }
+    }
+
+    fun removeReferralCode() {
+        _appliedReferralCode.value = ""
+        _applyReferralDiscount.value = false
+        viewModelScope.launch {
+            _eventFlow.emit(UiEvent.ShowToast("Referral discount removed"))
+        }
+    }
+
+    fun shareReferralQr(context: Context) {
+        val code = loyaltyProfile.value.referralCode
+        val name = userSession.value.name.ifBlank { "A Foodie Friend" }
+        com.example.util.QrCodeGenerator.shareReferralQrImage(context, code, name)
+    }
+
+    fun shareReferralInvite(context: Context) {
+        val code = loyaltyProfile.value.referralCode
+        val name = userSession.value.name.ifBlank { "A Foodie Friend" }
+        com.example.util.QrCodeGenerator.shareReferralText(context, code, name)
+    }
+
+    fun copyReferralCode(context: Context) {
+        val code = loyaltyProfile.value.referralCode
+        com.example.util.QrCodeGenerator.copyToClipboard(context, code)
     }
 
     fun setCustomerName(name: String) { _customerName.value = name }
@@ -538,11 +638,12 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         val address = _deliveryAddress.value.ifBlank { "Chowk Nazir Wala" }
 
         val subtotal = cartSubtotal.value
-        val discount = redeemableCoinsDiscount.value
+        val discount = totalDiscountAmount.value
         val fee = deliveryFee.value
         val total = grandTotal.value
         val earnedCoins = potentialCoinsEarned.value
         val redeemedCoins = coinsToRedeemCount.value
+        val usedReferralCode = _appliedReferralCode.value
 
         val itemsSummary = items.joinToString("\n") { item ->
             val details = mutableListOf<String>()
@@ -586,6 +687,11 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                 val generatedId = repository.placeOrder(order)
                 val finalOrder = order.copy(orderId = generatedId)
 
+                // If a friend's referral code was used on this order, reward the referrer with a 10% discount!
+                if (usedReferralCode.isNotBlank()) {
+                    repository.rewardReferrerForOrder(usedReferralCode)
+                }
+
                 _myPlacedOrderIds.value = _myPlacedOrderIds.value + generatedId
 
                 clearCart()
@@ -605,7 +711,8 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
         overallRating: Int,
         foodTaste: Int,
         deliverySpeed: Int,
-        comment: String
+        comment: String,
+        photoUri: String? = null
     ) {
         viewModelScope.launch {
             val feedback = CustomerFeedback(
@@ -615,7 +722,9 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
                 foodTasteRating = foodTaste,
                 deliverySpeedRating = deliverySpeed,
                 comment = comment,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                photoUri = photoUri,
+                photoUrl = photoUri
             )
             repository.submitFeedback(feedback)
             _selectedOrderForFeedback.value = null
@@ -770,43 +879,110 @@ class PizzaShopViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun verifyAndLoginAdmin(enteredOwnerId: String, enteredPin: String, rememberAdmin: Boolean = true): Boolean {
-        val currentOwnerId = ownerId.value.trim()
-        val currentPin = adminPin.value.trim()
+        val cleanOwnerId = enteredOwnerId.trim()
+        val cleanPin = enteredPin.trim()
 
-        val idMatch = (enteredOwnerId.trim().equals(currentOwnerId, ignoreCase = true) ||
-                       enteredOwnerId.trim().equals("Owner@slicesmile.com", ignoreCase = true) ||
-                       enteredOwnerId.trim().equals("admin", ignoreCase = true))
-        val pinMatch = (enteredPin.trim() == currentPin || 
-                       (currentPin == "1234" && enteredPin.trim() == "Hamza9181@") ||
-                       enteredPin.trim() == "Hamza9181@")
-
-        if (idMatch && pinMatch) {
-            _isAdminLoggedIn.value = true
-            repository.setAdminActive(true)
-            _isShowingAdminLogin.value = false
-            _isShowingRoleSelector.value = false
-            viewModelScope.launch {
-                repository.setAdminConfig("admin_persistent_session", if (rememberAdmin) "true" else "false")
+        viewModelScope.launch {
+            val authUser = repository.authenticateAdmin(cleanOwnerId, cleanPin)
+            if (authUser != null) {
+                if (!authUser.isActive) {
+                    _eventFlow.emit(UiEvent.ShowToast("This admin account '${authUser.name}' is currently disabled."))
+                    return@launch
+                }
+                _currentAdminUser.value = authUser
+                _isAdminLoggedIn.value = true
+                repository.setAdminActive(true)
+                _isShowingAdminLogin.value = false
+                _isShowingRoleSelector.value = false
+                if (rememberAdmin) {
+                    repository.setAdminConfig("admin_persistent_session", "true")
+                    repository.setAdminConfig("admin_persistent_id", authUser.id)
+                }
+                refreshOrdersFromCloud()
+                _eventFlow.emit(UiEvent.ShowToast("Welcome ${authUser.name} (${authUser.role.displayName}) 👑"))
+            } else {
+                _eventFlow.emit(UiEvent.ShowToast("Invalid Admin ID or Password! Please check credentials."))
             }
-            refreshOrdersFromCloud()
-            viewModelScope.launch {
-                _eventFlow.emit(UiEvent.ShowToast("Welcome to Owner / Admin Portal 👑"))
-            }
-            return true
-        } else {
-            viewModelScope.launch {
-                _eventFlow.emit(UiEvent.ShowToast("Invalid Owner ID or Password! Please check credentials."))
-            }
-            return false
         }
+        return true
     }
 
     fun logoutAdmin() {
         _isAdminLoggedIn.value = false
+        _currentAdminUser.value = null
         repository.setAdminActive(false)
         viewModelScope.launch {
             repository.setAdminConfig("admin_persistent_session", "false")
-            _eventFlow.emit(UiEvent.ShowToast("Logged out of Owner Portal 🔒"))
+            repository.setAdminConfig("admin_persistent_id", "")
+            _eventFlow.emit(UiEvent.ShowToast("Logged out of Admin Portal 🔒"))
+        }
+    }
+
+    // Partner / Admin Account Management
+    fun openAddPartner() {
+        _editingAdminUser.value = null
+        _isShowingPartnerDialog.value = true
+    }
+
+    fun openEditPartner(partner: AdminUser) {
+        _editingAdminUser.value = partner
+        _isShowingPartnerDialog.value = true
+    }
+
+    fun openPartnerDialog(user: AdminUser?) {
+        _editingAdminUser.value = user
+        _isShowingPartnerDialog.value = true
+    }
+
+    fun closePartnerDialog() {
+        _editingAdminUser.value = null
+        _isShowingPartnerDialog.value = false
+    }
+
+    fun savePartner(adminUser: AdminUser) {
+        viewModelScope.launch {
+            repository.saveAdminUser(adminUser)
+            _isShowingPartnerDialog.value = false
+            _editingAdminUser.value = null
+            _eventFlow.emit(UiEvent.ShowToast("Partner / Admin account '${adminUser.name}' saved! 🤝"))
+        }
+    }
+
+    fun saveAdminUser(adminUser: AdminUser) {
+        savePartner(adminUser)
+    }
+
+    fun deletePartner(userId: String) {
+        viewModelScope.launch {
+            repository.deleteAdminUser(userId)
+            _eventFlow.emit(UiEvent.ShowToast("Partner removed 🗑️"))
+        }
+    }
+
+    fun deleteAdminUser(adminUser: AdminUser) {
+        deletePartner(adminUser.id)
+    }
+
+    // PDF Invoice & Sales Report Actions
+    fun generateAndShareInvoice(context: Context, order: Order) {
+        val file = InvoicePdfGenerator.generateSingleOrderInvoice(context, order)
+        if (file != null) {
+            InvoicePdfGenerator.sharePdf(context, file, "Invoice #${order.orderId}")
+        } else {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Could not generate PDF Invoice."))
+            }
+        }
+    }
+
+    fun generateAndShareSalesReport(context: Context, reportTitle: String, orders: List<Order>, filterLabel: String) {
+        val file = InvoicePdfGenerator.generateInvoiceReport(context, reportTitle, orders, filterLabel)
+        if (file != null) {
+            InvoicePdfGenerator.sharePdf(context, file, reportTitle)
+        } else {
+            viewModelScope.launch {
+                _eventFlow.emit(UiEvent.ShowToast("Could not generate PDF Sales Report."))
+            }
         }
     }
 

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.LocationOn
@@ -32,8 +34,11 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Moped
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.Button
@@ -45,9 +50,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,17 +75,21 @@ import com.example.model.AuthType
 import com.example.model.CustomerFeedback
 import com.example.model.LoyaltyProfile
 import com.example.model.UserSession
+import com.example.ui.components.QrCodeView
 import com.example.ui.theme.PolishAccentGold
 import com.example.ui.theme.PolishBgLight
 import com.example.ui.theme.PolishBorder
 import com.example.ui.theme.PolishCardBg
 import com.example.ui.theme.PolishGreenSuccess
+import com.example.ui.theme.PolishInputBorder
 import com.example.ui.theme.PolishMaroonDark
 import com.example.ui.theme.PolishOrangeAlert
+import com.example.ui.theme.PolishPrimaryContainer
 import com.example.ui.theme.PolishPrimaryContainerSubtle
 import com.example.ui.theme.PolishPrimaryRed
 import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
+import com.example.util.QrCodeGenerator
 
 @Composable
 fun ProfileScreen(
@@ -89,9 +104,14 @@ fun ProfileScreen(
     onOpenAdminPortal: () -> Unit,
     onOpenRiderPortal: () -> Unit = {},
     onNavigateToOrders: () -> Unit,
-    onNavigateToLoyalty: () -> Unit
+    onNavigateToLoyalty: () -> Unit,
+    onShareQrCode: () -> Unit = {},
+    onShareInviteText: () -> Unit = {},
+    onCopyReferralCode: () -> Unit = {},
+    onApplyReferralCode: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    var friendReferralInput by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier
@@ -280,7 +300,357 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 2. Delivery Address Card
+        // 2. QR Code Referral & Invite Section (10% Discount Promotion)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("referral_qr_card"),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, PolishBorder),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Header Banner with discount callout
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(PolishPrimaryContainerSubtle),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(text = "🎁", fontSize = 20.sp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Invite Friends • Earn 10% OFF",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Black,
+                                        color = PolishMaroonDark,
+                                        fontSize = 16.sp
+                                    )
+                                )
+                                Text(
+                                    text = "Both get 10% Discount on orders!",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = PolishPrimaryRed,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
+                        }
+
+                        Surface(
+                            color = Color(0xFFE8F5E9),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFC8E6C9))
+                        ) {
+                            Text(
+                                text = "10% OFF",
+                                color = Color(0xFF2E7D32),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "Show this QR code to friends or share your invite link. When they order with your code, they get 10% OFF and you unlock a 10% discount on your next pizza!",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = PolishTextMuted,
+                            lineHeight = 18.sp
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // QR Code View with custom centered pizza emblem
+                    QrCodeView(
+                        data = loyaltyProfile.referralShareLink,
+                        size = 190.dp,
+                        darkColor = PolishMaroonDark,
+                        modifier = Modifier.testTag("customer_profile_qr_code")
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Referral Code Box
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (onCopyReferralCode != {}) {
+                                    onCopyReferralCode()
+                                } else {
+                                    QrCodeGenerator.copyToClipboard(context, loyaltyProfile.referralCode)
+                                }
+                            }
+                            .testTag("copy_referral_code_box"),
+                        color = Color(0xFFFFF8E1),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.5.dp, PolishAccentGold)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "YOUR REFERRAL CODE",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PolishMaroonDark,
+                                    letterSpacing = 1.sp
+                                )
+                                Text(
+                                    text = loyaltyProfile.referralCode,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = PolishPrimaryRed
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(PolishPrimaryRed.copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy",
+                                    tint = PolishPrimaryRed,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Copy",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = PolishPrimaryRed
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Sharing Action Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (onShareQrCode != {}) {
+                                    onShareQrCode()
+                                } else {
+                                    QrCodeGenerator.shareReferralQrImage(
+                                        context,
+                                        loyaltyProfile.referralCode,
+                                        userSession.name
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("share_qr_image_btn"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PolishMaroonDark,
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(vertical = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Share QR Card 📸",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                if (onShareInviteText != {}) {
+                                    onShareInviteText()
+                                } else {
+                                    QrCodeGenerator.shareReferralText(
+                                        context,
+                                        loyaltyProfile.referralCode,
+                                        userSession.name
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("share_invite_text_btn"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF25D366),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(vertical = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Invite Friends 💬",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Referral Reward Stats Strip
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(PolishBgLight)
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "${loyaltyProfile.successfulReferralsCount}",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp,
+                                color = PolishMaroonDark
+                            )
+                            Text(
+                                text = "Friends Invited",
+                                fontSize = 11.sp,
+                                color = PolishTextMuted
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(26.dp)
+                                .background(PolishBorder)
+                        )
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "${loyaltyProfile.availableReferralDiscountsCount}",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp,
+                                color = PolishPrimaryRed
+                            )
+                            Text(
+                                text = "10% Discounts Ready",
+                                fontSize = 11.sp,
+                                color = PolishTextMuted
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Redeem Friend's Code Section
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFFBF9F7))
+                            .border(1.dp, PolishBorder, RoundedCornerShape(14.dp))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "Got an Invite from a Friend? 🎟️",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = PolishMaroonDark
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = friendReferralInput,
+                                onValueChange = { friendReferralInput = it.uppercase() },
+                                placeholder = { Text("Enter SMILE-XXXX", fontSize = 12.sp, color = PolishTextMuted) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("friend_referral_input"),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    focusedBorderColor = PolishPrimaryRed,
+                                    unfocusedBorderColor = PolishInputBorder
+                                )
+                            )
+
+                            Button(
+                                onClick = {
+                                    if (friendReferralInput.isNotBlank()) {
+                                        onApplyReferralCode(friendReferralInput.trim())
+                                        friendReferralInput = ""
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PolishPrimaryRed,
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                                modifier = Modifier.testTag("apply_friend_referral_btn")
+                            ) {
+                                Text(
+                                    text = "Claim",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
+        // 3. Delivery Address Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -343,7 +713,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // 3. Customer Quick Contact / Help Card
+        // 4. Customer Quick Contact / Help Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),

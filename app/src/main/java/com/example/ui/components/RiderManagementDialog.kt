@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -18,6 +21,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -38,10 +43,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.model.Rider
 import com.example.ui.theme.PolishMaroonDark
 import com.example.ui.theme.PolishPrimaryRed
+import com.example.ui.theme.PolishTextDark
 import com.example.ui.theme.PolishTextMuted
 
 @Composable
@@ -56,23 +64,35 @@ fun RiderManagementDialog(
     var vehicle by remember { mutableStateOf(rider?.vehicle ?: "Honda 125 (Thermal Box)") }
     var pin by remember { mutableStateOf(rider?.pin ?: "1234") }
     var isEnabled by remember { mutableStateOf(rider?.isEnabled ?: true) }
+
+    // Granular Permissions
+    var canAcceptOrder by remember { mutableStateOf(rider?.canAcceptOrder ?: true) }
+    var canPickOrder by remember { mutableStateOf(rider?.canPickOrder ?: true) }
+    var canMarkDelivered by remember { mutableStateOf(rider?.canMarkDelivered ?: true) }
+    var canCallCustomer by remember { mutableStateOf(rider?.canCallCustomer ?: true) }
+    var canViewDirections by remember { mutableStateOf(rider?.canViewDirections ?: true) }
+
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Card(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(26.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(0.94f)
                 .padding(8.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(22.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = if (isNew) "Add Delivery Rider" else "Edit Rider Details",
+                    text = if (isNew) "Add Delivery Rider 🛵" else "Edit Rider Details 🛵",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Black,
                         color = PolishMaroonDark
@@ -80,7 +100,7 @@ fun RiderManagementDialog(
                 )
 
                 Text(
-                    text = "Manage rider account, phone contact, and security PIN",
+                    text = "Manage rider account, credentials, and custom access permissions",
                     style = MaterialTheme.typography.bodySmall,
                     color = PolishTextMuted
                 )
@@ -89,7 +109,7 @@ fun RiderManagementDialog(
 
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { name = it; errorMessage = null },
                     label = { Text("Rider Full Name") },
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = PolishPrimaryRed) },
                     singleLine = true,
@@ -107,7 +127,7 @@ fun RiderManagementDialog(
 
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = { phone = it },
+                    onValueChange = { phone = it; errorMessage = null },
                     label = { Text("Mobile Number (WhatsApp/Calls)") },
                     leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = PolishPrimaryRed) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -126,7 +146,7 @@ fun RiderManagementDialog(
 
                 OutlinedTextField(
                     value = vehicle,
-                    onValueChange = { vehicle = it },
+                    onValueChange = { vehicle = it; errorMessage = null },
                     label = { Text("Vehicle & Thermal Box Info") },
                     leadingIcon = { Icon(Icons.Default.TwoWheeler, contentDescription = null, tint = PolishPrimaryRed) },
                     singleLine = true,
@@ -144,7 +164,7 @@ fun RiderManagementDialog(
 
                 OutlinedTextField(
                     value = pin,
-                    onValueChange = { pin = it },
+                    onValueChange = { pin = it; errorMessage = null },
                     label = { Text("Rider 4-Digit Login PIN") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = PolishPrimaryRed) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -157,6 +177,49 @@ fun RiderManagementDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("rider_edit_pin_input")
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Granular Permissions
+                Text(
+                    text = "Rider Screen Access Permissions (اختیارات)",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = PolishMaroonDark
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                RiderPermissionRow(
+                    title = "Can Accept Available Ready Orders",
+                    checked = canAcceptOrder,
+                    onCheckedChange = { canAcceptOrder = it }
+                )
+
+                RiderPermissionRow(
+                    title = "Can Mark 'Order Picked' (Out for Delivery)",
+                    checked = canPickOrder,
+                    onCheckedChange = { canPickOrder = it }
+                )
+
+                RiderPermissionRow(
+                    title = "Can Mark 'Order Delivered' to Customer",
+                    checked = canMarkDelivered,
+                    onCheckedChange = { canMarkDelivered = it }
+                )
+
+                RiderPermissionRow(
+                    title = "Can Call Customer directly from App",
+                    checked = canCallCustomer,
+                    onCheckedChange = { canCallCustomer = it }
+                )
+
+                RiderPermissionRow(
+                    title = "Can View Google Maps Navigation / Directions",
+                    checked = canViewDirections,
+                    onCheckedChange = { canViewDirections = it }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -218,7 +281,12 @@ fun RiderManagementDialog(
                                     pin = pin.trim().ifBlank { "1234" },
                                     isEnabled = isEnabled,
                                     rating = rider?.rating ?: 5.0,
-                                    totalDeliveries = rider?.totalDeliveries ?: 0
+                                    totalDeliveries = rider?.totalDeliveries ?: 0,
+                                    canAcceptOrder = canAcceptOrder,
+                                    canPickOrder = canPickOrder,
+                                    canMarkDelivered = canMarkDelivered,
+                                    canCallCustomer = canCallCustomer,
+                                    canViewDirections = canViewDirections
                                 )
                                 onSave(savedRider)
                             }
@@ -238,5 +306,36 @@ fun RiderManagementDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RiderPermissionRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = PolishPrimaryRed,
+                checkmarkColor = Color.White
+            )
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontWeight = if (checked) FontWeight.Bold else FontWeight.Normal,
+                color = if (checked) PolishTextDark else PolishTextMuted
+            ),
+            modifier = Modifier.padding(start = 4.dp)
+        )
     }
 }

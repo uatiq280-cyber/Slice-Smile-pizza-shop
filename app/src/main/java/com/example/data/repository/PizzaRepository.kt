@@ -3,6 +3,7 @@ package com.example.data.repository
 import android.content.Context
 import android.util.Log
 import com.example.data.local.AdminConfigEntity
+import com.example.data.local.AdminUserEntity
 import com.example.data.local.AppDatabase
 import com.example.data.local.CustomMenuItemEntity
 import com.example.data.local.FeedbackEntity
@@ -10,6 +11,8 @@ import com.example.data.local.LoyaltyEntity
 import com.example.data.local.OrderEntity
 import com.example.data.local.RiderEntity
 import com.example.data.local.UserSessionEntity
+import com.example.model.AdminRole
+import com.example.model.AdminUser
 import com.example.model.CustomerFeedback
 import com.example.model.LoyaltyProfile
 import com.example.model.MenuItem
@@ -62,11 +65,13 @@ class PizzaRepository(
     private val customMenuItemDao = database.customMenuItemDao()
     private val userSessionDao = database.userSessionDao()
     private val riderDao = database.riderDao()
+    private val adminUserDao = database.adminUserDao()
 
     private var firestore: FirebaseFirestore? = null
     private var firestoreOrdersListener: ListenerRegistration? = null
     private var firestoreRidersListener: ListenerRegistration? = null
     private var firestoreFeedbackListener: ListenerRegistration? = null
+    private var firestoreAdminUsersListener: ListenerRegistration? = null
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
 
     private val _cloudSyncStatus = MutableStateFlow(CloudSyncStatus())
@@ -133,11 +138,13 @@ class PizzaRepository(
             listenToFirestoreOrders()
             listenToFirestoreRiders()
             listenToFirestoreFeedback()
+            listenToFirestoreAdminUsers()
             listenToFirestorePaymentSettings()
             // Initial fetch to load existing cloud orders and admin credentials immediately
             repositoryScope.launch {
                 refreshOrdersFromCloud()
                 syncAdminCredentialsFromCloud()
+                syncAdminUsersFromCloud()
                 syncPaymentSettingsFromCloud()
             }
             Log.d("PizzaRepository", "Firestore listeners and initial fetch initialized successfully.")
@@ -461,6 +468,11 @@ class PizzaRepository(
                             val isEnabled = doc.getBoolean("isEnabled") ?: true
                             val rating = doc.getDouble("rating") ?: 5.0
                             val totalDeliveries = doc.getLong("totalDeliveries")?.toInt() ?: 0
+                            val canAcceptOrder = doc.getBoolean("canAcceptOrder") ?: true
+                            val canPickOrder = doc.getBoolean("canPickOrder") ?: true
+                            val canMarkDelivered = doc.getBoolean("canMarkDelivered") ?: true
+                            val canCallCustomer = doc.getBoolean("canCallCustomer") ?: true
+                            val canViewDirections = doc.getBoolean("canViewDirections") ?: true
                             RiderEntity(
                                 id = id,
                                 name = name,
@@ -469,7 +481,12 @@ class PizzaRepository(
                                 vehicle = vehicle,
                                 isEnabled = isEnabled,
                                 rating = rating,
-                                totalDeliveries = totalDeliveries
+                                totalDeliveries = totalDeliveries,
+                                canAcceptOrder = canAcceptOrder,
+                                canPickOrder = canPickOrder,
+                                canMarkDelivered = canMarkDelivered,
+                                canCallCustomer = canCallCustomer,
+                                canViewDirections = canViewDirections
                             )
                         } catch (e: Exception) {
                             null
@@ -504,6 +521,8 @@ class PizzaRepository(
                             val foodTasteRating = doc.getLong("foodTasteRating")?.toInt() ?: 5
                             val deliverySpeedRating = doc.getLong("deliverySpeedRating")?.toInt() ?: 5
                             val comment = doc.getString("comment") ?: ""
+                            val photoUri = doc.getString("photoUri")
+                            val photoUrl = doc.getString("photoUrl")
                             val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
                             FeedbackEntity(
                                 id = id,
@@ -513,6 +532,8 @@ class PizzaRepository(
                                 foodTasteRating = foodTasteRating,
                                 deliverySpeedRating = deliverySpeedRating,
                                 comment = comment,
+                                photoUri = photoUri,
+                                photoUrl = photoUrl,
                                 timestamp = timestamp
                             )
                         } catch (e: Exception) {
@@ -528,6 +549,65 @@ class PizzaRepository(
             }
         } catch (e: Exception) {
             Log.w("PizzaRepository", "Firestore feedback listener error: ${e.message}")
+        }
+    }
+
+    // ================= REAL-TIME FIRESTORE ADMIN USERS / PARTNERS SYNC =================
+    private fun listenToFirestoreAdminUsers() {
+        try {
+            val db = getDb()
+            firestoreAdminUsersListener?.remove()
+            firestoreAdminUsersListener = db.collection("admin_users").addSnapshotListener { snapshots, error ->
+                if (error != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val users = snapshots.documents.mapNotNull { doc ->
+                        try {
+                            val id = doc.getString("id") ?: doc.id
+                            val username = doc.getString("username") ?: id
+                            val name = doc.getString("name") ?: username
+                            val phone = doc.getString("phone") ?: ""
+                            val pin = doc.getString("pin") ?: "1234"
+                            val roleName = doc.getString("roleName") ?: "PARTNER"
+                            val isActive = doc.getBoolean("isActive") ?: true
+                            val canManageMenu = doc.getBoolean("canManageMenu") ?: true
+                            val canManageOrders = doc.getBoolean("canManageOrders") ?: true
+                            val canViewReports = doc.getBoolean("canViewReports") ?: true
+                            val canManageRiders = doc.getBoolean("canManageRiders") ?: true
+                            val canManagePartners = doc.getBoolean("canManagePartners") ?: false
+                            val canManagePayments = doc.getBoolean("canManagePayments") ?: false
+                            val canManageDeals = doc.getBoolean("canManageDeals") ?: true
+                            val createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+
+                            AdminUserEntity(
+                                id = id,
+                                username = username,
+                                name = name,
+                                phone = phone,
+                                pin = pin,
+                                roleName = roleName,
+                                isActive = isActive,
+                                canManageMenu = canManageMenu,
+                                canManageOrders = canManageOrders,
+                                canViewReports = canViewReports,
+                                canManageRiders = canManageRiders,
+                                canManagePartners = canManagePartners,
+                                canManagePayments = canManagePayments,
+                                canManageDeals = canManageDeals,
+                                createdAt = createdAt
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (users.isNotEmpty()) {
+                        for (u in users) {
+                            adminUserDao.insertOrUpdate(u)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Firestore admin users listener error: ${e.message}")
         }
     }
 
@@ -621,12 +701,235 @@ class PizzaRepository(
         list.map { it.toDomain() }
     }
 
+    val allAdminUsersFlow: Flow<List<AdminUser>> = adminUserDao.getAllAdminUsersFlow().map { list ->
+        list.map { it.toDomain() }
+    }
+
     val adminPinFlow: Flow<String> = adminDao.getConfigFlow("admin_pin").map {
-        it ?: "Hamza9181@"
+        it ?: "1234"
     }
 
     val ownerIdFlow: Flow<String> = adminDao.getConfigFlow("owner_id").map {
-        it ?: "Owner@slicesmile.com"
+        it ?: "admin"
+    }
+
+    suspend fun getAllAdminUsersOnce(): List<AdminUser> = withContext(Dispatchers.IO) {
+        adminUserDao.getAllAdminUsers().map { it.toDomain() }
+    }
+
+    suspend fun saveAdminUser(user: AdminUser) = withContext(Dispatchers.IO) {
+        adminUserDao.insertOrUpdate(AdminUserEntity.fromDomain(user))
+        try {
+            val db = getDb()
+            val map = hashMapOf(
+                "id" to user.id,
+                "username" to user.username,
+                "name" to user.name,
+                "phone" to user.phone,
+                "pin" to user.pin,
+                "roleName" to user.role.name,
+                "isActive" to user.isActive,
+                "canManageMenu" to user.canManageMenu,
+                "canManageOrders" to user.canManageOrders,
+                "canViewReports" to user.canViewReports,
+                "canManageRiders" to user.canManageRiders,
+                "canManagePartners" to user.canManagePartners,
+                "canManagePayments" to user.canManagePayments,
+                "canManageDeals" to user.canManageDeals,
+                "createdAt" to user.createdAt
+            )
+            db.collection("admin_users").document(user.id).set(map)
+        } catch (e: Exception) {
+            Log.e("PizzaRepository", "Firestore saveAdminUser error", e)
+        }
+    }
+
+    suspend fun deleteAdminUser(userId: String) = withContext(Dispatchers.IO) {
+        adminUserDao.deleteUser(userId)
+        try {
+            val db = getDb()
+            db.collection("admin_users").document(userId).delete()
+        } catch (e: Exception) {
+            Log.e("PizzaRepository", "Firestore deleteAdminUser error", e)
+        }
+    }
+
+    suspend fun authenticateAdmin(usernameOrPhone: String, pin: String): AdminUser? = withContext(Dispatchers.IO) {
+        val cleanInput = usernameOrPhone.trim()
+        val cleanPin = pin.trim()
+
+        // 1. Check in Room admin_users
+        val localUsers = adminUserDao.getAllAdminUsers()
+        val matchedUser = localUsers.firstOrNull { 
+            (it.username.equals(cleanInput, ignoreCase = true) || it.phone == cleanInput || it.id.equals(cleanInput, ignoreCase = true)) && it.pin == cleanPin && it.isActive 
+        }
+        if (matchedUser != null) {
+            return@withContext matchedUser.toDomain()
+        }
+
+        // 2. Check legacy admin_config
+        val savedOwnerId = adminDao.getConfig("owner_id") ?: "admin"
+        val savedPin = adminDao.getConfig("admin_pin") ?: "1234"
+        if ((cleanInput.equals(savedOwnerId, ignoreCase = true) || cleanInput.equals("admin", ignoreCase = true)) && cleanPin == savedPin) {
+            val defaultSuper = AdminUser(
+                id = "admin_owner",
+                username = savedOwnerId,
+                name = "Main Admin / Owner",
+                pin = savedPin,
+                role = com.example.model.AdminRole.SUPER_ADMIN
+            )
+            adminUserDao.insertOrUpdate(AdminUserEntity.fromDomain(defaultSuper))
+            return@withContext defaultSuper
+        }
+
+        // 3. Fallback check from Firestore if freshly installed
+        try {
+            val db = getDb()
+            val snapshot = com.google.android.gms.tasks.Tasks.await(db.collection("admin_users").get())
+            for (doc in snapshot.documents) {
+                val uname = doc.getString("username") ?: ""
+                val pNumber = doc.getString("phone") ?: ""
+                val docPin = doc.getString("pin") ?: ""
+                val active = doc.getBoolean("isActive") ?: true
+                if ((uname.equals(cleanInput, ignoreCase = true) || pNumber == cleanInput) && docPin == cleanPin && active) {
+                    val roleStr = doc.getString("roleName") ?: "PARTNER"
+                    val roleEnum = try { com.example.model.AdminRole.valueOf(roleStr) } catch(e:Exception) { com.example.model.AdminRole.PARTNER }
+                    val user = AdminUser(
+                        id = doc.getString("id") ?: doc.id,
+                        username = uname,
+                        name = doc.getString("name") ?: uname,
+                        phone = pNumber,
+                        pin = docPin,
+                        role = roleEnum,
+                        isActive = active,
+                        canManageMenu = doc.getBoolean("canManageMenu") ?: true,
+                        canManageOrders = doc.getBoolean("canManageOrders") ?: true,
+                        canViewReports = doc.getBoolean("canViewReports") ?: true,
+                        canManageRiders = doc.getBoolean("canManageRiders") ?: true,
+                        canManagePartners = doc.getBoolean("canManagePartners") ?: false,
+                        canManagePayments = doc.getBoolean("canManagePayments") ?: false,
+                        canManageDeals = doc.getBoolean("canManageDeals") ?: true
+                    )
+                    adminUserDao.insertOrUpdate(AdminUserEntity.fromDomain(user))
+                    return@withContext user
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Cloud admin auth check: ${e.message}")
+        }
+
+        null
+    }
+
+    suspend fun syncAdminUsersFromCloud() = withContext(Dispatchers.IO) {
+        try {
+            val db = getDb()
+            val snapshot = com.google.android.gms.tasks.Tasks.await(db.collection("admin_users").get())
+            val users = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val id = doc.getString("id") ?: doc.id
+                    val username = doc.getString("username") ?: id
+                    val name = doc.getString("name") ?: username
+                    val phone = doc.getString("phone") ?: ""
+                    val pin = doc.getString("pin") ?: "1234"
+                    val roleName = doc.getString("roleName") ?: "PARTNER"
+                    val isActive = doc.getBoolean("isActive") ?: true
+                    AdminUserEntity(
+                        id = id,
+                        username = username,
+                        name = name,
+                        phone = phone,
+                        pin = pin,
+                        roleName = roleName,
+                        isActive = isActive,
+                        canManageMenu = doc.getBoolean("canManageMenu") ?: true,
+                        canManageOrders = doc.getBoolean("canManageOrders") ?: true,
+                        canViewReports = doc.getBoolean("canViewReports") ?: true,
+                        canManageRiders = doc.getBoolean("canManageRiders") ?: true,
+                        canManagePartners = doc.getBoolean("canManagePartners") ?: false,
+                        canManagePayments = doc.getBoolean("canManagePayments") ?: false,
+                        canManageDeals = doc.getBoolean("canManageDeals") ?: true,
+                        createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (users.isNotEmpty()) {
+                adminUserDao.insertAll(users)
+            }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Notice: syncAdminUsersFromCloud ${e.message}")
+        }
+    }
+
+    suspend fun applyReferralCode(code: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanCode = code.trim().uppercase()
+        val profile = loyaltyDao.getLoyaltyProfile() ?: LoyaltyEntity()
+        if (cleanCode.isNotBlank() && cleanCode != profile.referralCode) {
+            loyaltyDao.insertOrUpdateProfile(
+                profile.copy(
+                    hasPendingReferralDiscount = true,
+                    currentCoins = profile.currentCoins + 100 // Bonus 100 Slice coins + 10% welcome discount!
+                )
+            )
+            // Also notify and credit the inviter on Cloud Firestore
+            try {
+                val db = getDb()
+                val referralLog = hashMapOf(
+                    "referredByCode" to cleanCode,
+                    "joinedTimestamp" to System.currentTimeMillis(),
+                    "status" to "CODE_APPLIED"
+                )
+                db.collection("referral_logs").add(referralLog)
+            } catch (e: Exception) {
+                Log.d("PizzaRepository", "Referral cloud log notice: ${e.message}")
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    suspend fun rewardReferrerForOrder(referralCode: String) = withContext(Dispatchers.IO) {
+        val cleanCode = referralCode.trim().uppercase()
+        if (cleanCode.isBlank()) return@withContext
+
+        try {
+            val db = getDb()
+            // 1. Log referral completion to Firestore
+            val referralDoc = hashMapOf(
+                "referralCode" to cleanCode,
+                "rewardGranted" to "10%_DISCOUNT_NEXT_ORDER",
+                "bonusCoins" to 200,
+                "timestamp" to System.currentTimeMillis()
+            )
+            db.collection("successful_referrals").add(referralDoc)
+
+            // 2. Check if local profile is the owner of this referral code
+            val currentProfile = loyaltyDao.getLoyaltyProfile() ?: LoyaltyEntity()
+            if (currentProfile.referralCode.equals(cleanCode, ignoreCase = true)) {
+                loyaltyDao.insertOrUpdateProfile(
+                    currentProfile.copy(
+                        successfulReferralsCount = currentProfile.successfulReferralsCount + 1,
+                        availableReferralDiscountsCount = currentProfile.availableReferralDiscountsCount + 1,
+                        totalReferralDiscountsEarned = currentProfile.totalReferralDiscountsEarned + 1,
+                        currentCoins = currentProfile.currentCoins + 200,
+                        totalCoinsEarnedLifetime = currentProfile.totalCoinsEarnedLifetime + 200
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Log.w("PizzaRepository", "Error rewarding referral inviter: ${e.message}")
+        }
+    }
+
+    suspend fun updateCustomReferralCode(newCode: String) = withContext(Dispatchers.IO) {
+        val clean = newCode.trim().uppercase()
+        if (clean.isNotBlank()) {
+            val current = loyaltyDao.getLoyaltyProfile() ?: LoyaltyEntity()
+            loyaltyDao.insertOrUpdateProfile(current.copy(referralCode = clean))
+        }
     }
 
     val customMenuItemsFlow: Flow<List<CustomMenuItemEntity>> = customMenuItemDao.getAllCustomMenuItemsFlow()
@@ -829,7 +1132,12 @@ class PizzaRepository(
                 "vehicle" to rider.vehicle,
                 "isEnabled" to rider.isEnabled,
                 "rating" to rider.rating.toDouble(),
-                "totalDeliveries" to rider.totalDeliveries
+                "totalDeliveries" to rider.totalDeliveries,
+                "canAcceptOrder" to rider.canAcceptOrder,
+                "canPickOrder" to rider.canPickOrder,
+                "canMarkDelivered" to rider.canMarkDelivered,
+                "canCallCustomer" to rider.canCallCustomer,
+                "canViewDirections" to rider.canViewDirections
             )
             db.collection("riders").document(rider.id).set(map)
         } catch (e: Exception) {
@@ -899,6 +1207,8 @@ class PizzaRepository(
                 "customCategoryName" to (item.customCategoryName ?: ""),
                 "description" to item.description,
                 "basePrice" to item.basePrice,
+                "originalPrice" to item.originalPrice,
+                "discountPercent" to item.discountPercent,
                 "imageUrl" to (item.imageUrl ?: ""),
                 "isAvailable" to item.isAvailable,
                 "isDeleted" to isDeleted
@@ -1010,13 +1320,19 @@ class PizzaRepository(
             )
         }
 
-        // Update loyalty profile if coins redeemed or earned
+        // Update loyalty profile if coins redeemed or earned, and consume referral discount if used
         val currentProfile = loyaltyDao.getLoyaltyProfile() ?: LoyaltyEntity()
         val newCurrentCoins = (currentProfile.currentCoins - order.coinsRedeemed + order.coinsEarned).coerceAtLeast(0)
         val newLifetimeEarned = currentProfile.totalCoinsEarnedLifetime + order.coinsEarned
         val newLifetimeRedeemed = currentProfile.totalCoinsRedeemedLifetime + order.coinsRedeemed
         val newOrdersCount = currentProfile.totalOrdersCount + 1
         val newTotalSpent = currentProfile.totalSpent + order.totalAmount
+        val newAvailableDiscounts = if (order.discount > 0 && currentProfile.availableReferralDiscountsCount > 0) {
+            currentProfile.availableReferralDiscountsCount - 1
+        } else {
+            currentProfile.availableReferralDiscountsCount
+        }
+        val newPendingDiscount = if (order.discount > 0) false else currentProfile.hasPendingReferralDiscount
 
         loyaltyDao.insertOrUpdateProfile(
             currentProfile.copy(
@@ -1024,7 +1340,9 @@ class PizzaRepository(
                 totalCoinsEarnedLifetime = newLifetimeEarned,
                 totalCoinsRedeemedLifetime = newLifetimeRedeemed,
                 totalOrdersCount = newOrdersCount,
-                totalSpent = newTotalSpent
+                totalSpent = newTotalSpent,
+                availableReferralDiscountsCount = newAvailableDiscounts,
+                hasPendingReferralDiscount = newPendingDiscount
             )
         )
 
@@ -1070,6 +1388,8 @@ class PizzaRepository(
                 "foodTasteRating" to feedback.foodTasteRating,
                 "deliverySpeedRating" to feedback.deliverySpeedRating,
                 "comment" to feedback.comment,
+                "photoUri" to (feedback.photoUri ?: ""),
+                "photoUrl" to (feedback.photoUrl ?: ""),
                 "timestamp" to feedback.timestamp
             )
             db.collection("customer_feedback").document(feedback.id.toString()).set(feedbackMap)

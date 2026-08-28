@@ -234,6 +234,14 @@ fun LoyaltyScreen(
                         title = "1-Click Auto Redemption",
                         description = "Toggle the coin discount switch directly in the Cart to apply instant savings."
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LoyaltyRuleItem(
+                        icon = Icons.Default.Stars,
+                        title = "QR Referral: 10% OFF on Orders",
+                        description = "Share your personal QR code from Profile! When friends place an order, you earn 10% off your next order."
+                    )
                 }
             }
         }
