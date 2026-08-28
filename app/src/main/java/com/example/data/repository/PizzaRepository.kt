@@ -706,11 +706,11 @@ class PizzaRepository(
     }
 
     val adminPinFlow: Flow<String> = adminUserDao.getAllAdminUsersFlow().map { list ->
-    list.firstOrNull { it.role == com.example.model.AdminRole.SUPER_ADMIN && it.isActive }?.pin ?: "1234"
+    list.firstOrNull { it.roleName == "SUPER_ADMIN" && it.isActive }?.pin ?: "1234"
 }
 
 val ownerIdFlow: Flow<String> = adminUserDao.getAllAdminUsersFlow().map { list ->
-    list.firstOrNull { it.role == com.example.model.AdminRole.SUPER_ADMIN && it.isActive }?.username ?: "admin"
+    list.firstOrNull { it.roleName == "SUPER_ADMIN" && it.isActive }?.username ?: "admin"
 }
 
     suspend fun getAllAdminUsersOnce(): List<AdminUser> = withContext(Dispatchers.IO) {
