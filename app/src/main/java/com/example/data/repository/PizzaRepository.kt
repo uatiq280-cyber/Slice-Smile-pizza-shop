@@ -761,62 +761,12 @@ val ownerIdFlow: Flow<String> = adminUserDao.getAllAdminUsersFlow().map { list -
         // 1. Check in Room admin_users
         val localUsers = adminUserDao.getAllAdminUsers()
         val matchedUser = localUsers.firstOrNull { 
-            (it.username.equals(cleanInput, ignoreCase = true) || it.phone == cleanInput || it.id.equals(cleanInput, ignoreCase = true)) && it.pin == cleanPin && it.isActive 
+            (it.username.equals(cleanInput, ignoreCase = true) || it.phone == cleanInput) && it.pin == cleanPin && it.isActive
         }
         if (matchedUser != null) {
             return@withContext matchedUser.toDomain()
         }
 
-        // 2. Check legacy admin_config
-        val savedOwnerId = adminDao.getConfig("owner_id") ?: "admin"
-        val savedPin = adminDao.getConfig("admin_pin") ?: "1234"
-        if ((cleanInput.equals(savedOwnerId, ignoreCase = true) || cleanInput.equals("admin", ignoreCase = true)) && cleanPin == savedPin) {
-            val defaultSuper = AdminUser(
-                id = "admin_owner",
-                username = savedOwnerId,
-                name = "Main Admin / Owner",
-                pin = savedPin,
-                role = com.example.model.AdminRole.SUPER_ADMIN
-            )
-            adminUserDao.insertOrUpdate(AdminUserEntity.fromDomain(defaultSuper))
-            return@withContext defaultSuper
-        }
-
-        // 3. Fallback check from Firestore if freshly installed
-        try {
-            val db = getDb()
-            val snapshot = com.google.android.gms.tasks.Tasks.await(db.collection("admin_users").get())
-            for (doc in snapshot.documents) {
-                val uname = doc.getString("username") ?: ""
-                val pNumber = doc.getString("phone") ?: ""
-                val docPin = doc.getString("pin") ?: ""
-                val active = doc.getBoolean("isActive") ?: true
-                if ((uname.equals(cleanInput, ignoreCase = true) || pNumber == cleanInput) && docPin == cleanPin && active) {
-                    val roleStr = doc.getString("roleName") ?: "PARTNER"
-                    val roleEnum = try { com.example.model.AdminRole.valueOf(roleStr) } catch(e:Exception) { com.example.model.AdminRole.PARTNER }
-                    val user = AdminUser(
-                        id = doc.getString("id") ?: doc.id,
-                        username = uname,
-                        name = doc.getString("name") ?: uname,
-                        phone = pNumber,
-                        pin = docPin,
-                        role = roleEnum,
-                        isActive = active,
-                        canManageMenu = doc.getBoolean("canManageMenu") ?: true,
-                        canManageOrders = doc.getBoolean("canManageOrders") ?: true,
-                        canViewReports = doc.getBoolean("canViewReports") ?: true,
-                        canManageRiders = doc.getBoolean("canManageRiders") ?: true,
-                        canManagePartners = doc.getBoolean("canManagePartners") ?: false,
-                        canManagePayments = doc.getBoolean("canManagePayments") ?: false,
-                        canManageDeals = doc.getBoolean("canManageDeals") ?: true
-                    )
-                    adminUserDao.insertOrUpdate(AdminUserEntity.fromDomain(user))
-                    return@withContext user
-                }
-            }
-        } catch (e: Exception) {
-            Log.w("PizzaRepository", "Cloud admin auth check: ${e.message}")
-        }
 
         null
     }
