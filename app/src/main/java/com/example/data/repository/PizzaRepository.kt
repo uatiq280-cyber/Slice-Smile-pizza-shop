@@ -705,13 +705,13 @@ class PizzaRepository(
         list.map { it.toDomain() }
     }
 
-    val adminPinFlow: Flow<String> = adminDao.getConfigFlow("admin_pin").map {
-        it ?: "1234"
-    }
+    val adminPinFlow: Flow<String> = adminUserDao.getAllAdminUsersFlow().map { list ->
+    list.firstOrNull { it.role == com.example.model.AdminRole.SUPER_ADMIN && it.isActive }?.pin ?: "1234"
+}
 
-    val ownerIdFlow: Flow<String> = adminDao.getConfigFlow("owner_id").map {
-        it ?: "admin"
-    }
+val ownerIdFlow: Flow<String> = adminUserDao.getAllAdminUsersFlow().map { list ->
+    list.firstOrNull { it.role == com.example.model.AdminRole.SUPER_ADMIN && it.isActive }?.username ?: "admin"
+}
 
     suspend fun getAllAdminUsersOnce(): List<AdminUser> = withContext(Dispatchers.IO) {
         adminUserDao.getAllAdminUsers().map { it.toDomain() }
