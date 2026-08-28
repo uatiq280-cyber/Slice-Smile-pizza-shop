@@ -1059,64 +1059,87 @@ val ownerIdFlow: Flow<String> = adminUserDao.getAllAdminUsersFlow().map { list -
     }
 
     suspend fun updateOwnerCredentials(ownerId: String, newPin: String) = withContext(Dispatchers.IO) {
-        val cleanOwnerId = ownerId.trim()
-        val cleanPin = newPin.trim()
+    val cleanOwnerId = ownerId.trim()
+    val cleanPin = newPin.trim()
 
-        // 1. Save to local Room Database
-        adminDao.setConfig(AdminConfigEntity(key = "owner_id", value = cleanOwnerId))
-        adminDao.setConfig(AdminConfigEntity(key = "admin_pin", value = cleanPin))
+    // 1. Update the existing SUPER ADMIN in local Room.
+    // Keep the same admin user ID so the login account is updated,
+    // not replaced by a second account.
+    val localUsers = adminUserDao.getAllAdminUsers()
+    val superAdmin = localUsers.firstOrNull {
+        it.roleName == AdminRole.SUPER_ADMIN.name && it.isActive
+    }
 
-        // 2. Sync to Firestore admin_config/credentials document
+    if (superAdmin != null) {
+        val updatedAdmin = superAdmin.copy(
+            username = cleanOwnerId,
+            pin = cleanPin
+        )
+        adminUserDao.insertOrUpdate(updatedAdmin)
+
+        // 2. Keep legacy local config synchronized.
+        adminDao.setConfig(
+            AdminConfigEntity(key = "owner_id", value = cleanOwnerId)
+        )
+        adminDao.setConfig(
+            AdminConfigEntity(key = "admin_pin", value = cleanPin)
+        )
+
+        // 3. Update the same admin user in Firestore.
         try {
             val db = getDb()
+
+            val adminMap = hashMapOf(
+                "id" to updatedAdmin.id,
+                "username" to updatedAdmin.username,
+                "name" to updatedAdmin.name,
+                "phone" to updatedAdmin.phone,
+                "pin" to updatedAdmin.pin,
+                "roleName" to updatedAdmin.roleName,
+                "isActive" to updatedAdmin.isActive,
+                "canManageMenu" to updatedAdmin.canManageMenu,
+                "canManageOrders" to updatedAdmin.canManageOrders,
+                "canViewReports" to updatedAdmin.canViewReports,
+                "canManageRiders" to updatedAdmin.canManageRiders,
+                "canManagePartners" to updatedAdmin.canManagePartners,
+                "canManagePayments" to updatedAdmin.canManagePayments,
+                "canManageDeals" to updatedAdmin.canManageDeals,
+                "createdAt" to updatedAdmin.createdAt
+            )
+
+            db.collection("admin_users")
+                .document(updatedAdmin.id)
+                .set(adminMap)
+
+            // 4. Keep legacy admin_config synchronized too.
             val credMap = hashMapOf(
                 "ownerId" to cleanOwnerId,
                 "password" to cleanPin,
                 "lastUpdated" to System.currentTimeMillis(),
-                "updatedBy" to "AdminAppClient",
-                "authType" to "FIREBASE_AUTH_SYNCED"
+                "updatedBy" to "AdminAppClient"
             )
-            db.collection("admin_config").document("credentials").set(credMap)
-                .addOnSuccessListener {
-                    Log.d("PizzaRepository", "Admin credentials updated in Firestore successfully!")
-                }
-                .addOnFailureListener { e ->
-                    Log.w("PizzaRepository", "Failed to update admin credentials in Firestore", e)
-                }
-        } catch (e: Exception) {
-            Log.e("PizzaRepository", "Error syncing admin credentials to Firestore", e)
-        }
 
-        // 3. Update or Create in Firebase Auth
-        try {
-            val auth = com.example.service.FirebaseInitHelper.getAuth(context)
-            val emailForAuth = if (cleanOwnerId.contains("@")) cleanOwnerId else "$cleanOwnerId@slicesmile.com"
-            val currentUser = auth.currentUser
+            db.collection("admin_config")
+                .document("credentials")
+                .set(credMap)
 
-            if (currentUser != null && currentUser.email.equals(emailForAuth, ignoreCase = true)) {
-                currentUser.updatePassword(cleanPin).addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        Log.d("PizzaRepository", "Firebase Auth password updated successfully for $emailForAuth")
-                    } else {
-                        Log.w("PizzaRepository", "Firebase Auth password update failed: ${task.exception?.message}")
-                    }
-                }
-            } else {
-                // Try signing in and updating, or create admin user if doesn't exist
-                auth.signInWithEmailAndPassword(emailForAuth, cleanPin)
-                    .addOnFailureListener {
-                        auth.createUserWithEmailAndPassword(emailForAuth, cleanPin)
-                            .addOnSuccessListener {
-                                Log.d("PizzaRepository", "Firebase Auth created new Admin user: $emailForAuth")
-                            }
-                            .addOnFailureListener { err ->
-                                Log.d("PizzaRepository", "Firebase Auth Notice: ${err.message}")
-                            }
-                    }
-            }
+            Log.d(
+                "PizzaRepository",
+                "Owner credentials updated successfully for $cleanOwnerId"
+            )
         } catch (e: Exception) {
-            Log.d("PizzaRepository", "Firebase Auth update notice: ${e.message}")
+            Log.e(
+                "PizzaRepository",
+                "Error syncing owner credentials to Firestore",
+                e
+            )
         }
+    } else {
+        Log.w(
+            "PizzaRepository",
+            "No active SUPER_ADMIN found while updating owner credentials"
+        )
+    }
     }
 
     // ================= RIDER MANAGEMENT =================
