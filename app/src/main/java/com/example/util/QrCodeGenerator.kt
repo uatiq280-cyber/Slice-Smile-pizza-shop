@@ -449,8 +449,8 @@ object QrCodeGenerator {
         canvas.drawRoundRect(qrBoxRect, 28f, 28f, paint)
         paint.style = Paint.Style.FILL
 
-        // Render QR
-        val qrText = "https://slicesmile.pizza/ref?code=$referralCode"
+        // Render QR (Encodes the Google Drive Direct App Download link)
+        val qrText = "https://drive.google.com/file/d/10qBsHnKdhzfE3A4QQ-7l8PL4xj_jyUAB/view?usp=drivesdk"
         val qrBitmap = generateQrBitmap(
             text = qrText,
             size = (qrBoxSize - 60).toInt(),
@@ -584,16 +584,20 @@ object QrCodeGenerator {
         return """
 🍕 *Special 10% OFF Pizza Invitation from Slice Smile Pizzeria!*
 
-$customerName has invited you to taste the best oven-fresh pizzas in Sadiqabad! 😋
+$customerName has invited you to order oven-fresh pizzas in Sadiqabad! 😋
 
-🎁 *Your 10% Discount Code:* `${referralCode}`
-📲 Order & Claim Discount: https://slicesmile.pizza/ref?code=${referralCode}
+🎁 *Your 10% Discount Promo Code:* `${referralCode}`
+📥 *Download Slice Smile App:*
+https://drive.google.com/file/d/10qBsHnKdhzfE3A4QQ-7l8PL4xj_jyUAB/view?usp=drivesdk
 
 ✅ Hot & Cheesy Pizzas, Burgers & Wraps
-✅ Fast Delivery to your doorstep
+✅ Fast Delivery to your doorstep in Sadiqabad
 ✅ Pay Cash on Delivery or Easypaisa / JazzCash
 
-Apply `${referralCode}` during checkout to get 10% flat off! 🍕✨
+💡 *How to get 10% OFF:*
+1. Download & open the app
+2. Put `${referralCode}` in Cart during checkout or Profile
+3. Enjoy 10% flat discount on your delicious pizza! 🍕✨
         """.trimIndent()
     }
 }

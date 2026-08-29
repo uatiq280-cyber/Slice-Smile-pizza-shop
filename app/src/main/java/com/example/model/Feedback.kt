@@ -28,7 +28,9 @@ data class LoyaltyProfile(
     // 100 coins = Rs 10 discount
     val discountEquivalentRs: Int get() = (currentCoins / 100) * 10
     val discountValueInRupees: Int get() = discountEquivalentRs
-    val referralShareLink: String get() = "https://slicesmile.pizza/ref?code=$referralCode"
+    // Direct Google Drive APK link for customer downloads
+    val apkDownloadLink: String get() = "https://drive.google.com/file/d/10qBsHnKdhzfE3A4QQ-7l8PL4xj_jyUAB/view?usp=drivesdk"
+    val referralShareLink: String get() = apkDownloadLink
     val hasAvailableReferralDiscount: Boolean get() = availableReferralDiscountsCount > 0 || hasPendingReferralDiscount
 }
 
