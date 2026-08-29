@@ -492,6 +492,7 @@ fun SliceSmilePizzaApp(viewModel: PizzaShopViewModel = viewModel()) {
                             menuItems = allMenuItems,
                             orders = ordersList,
                             riders = allRiders,
+                            adminUsers = allAdminUsers,
                             paymentSettings = paymentSettings,
                             customerUsageStats = customerUsageStats,
                             cloudSyncStatus = cloudSyncStatus,
